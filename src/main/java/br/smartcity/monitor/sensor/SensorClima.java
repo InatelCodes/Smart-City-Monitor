@@ -1,5 +1,6 @@
 package br.smartcity.monitor.sensor;
 
+import br.smartcity.monitor.metrics.Metricas;
 import br.smartcity.monitor.model.Evento;
 import br.smartcity.monitor.model.TipoEvento;
 
@@ -10,9 +11,10 @@ public class SensorClima extends Sensor {
 
     public SensorClima(
             BlockingQueue<Evento> fila,
-            long intervaloMs
+            long intervaloMs,
+            Metricas metricas
     ) {
-        super(fila, intervaloMs, "SENSOR-CLIMA");
+        super(fila, intervaloMs, metricas, "SENSOR-CLIMA");
     }
 
     @Override

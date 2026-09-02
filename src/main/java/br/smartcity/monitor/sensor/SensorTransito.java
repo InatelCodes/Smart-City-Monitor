@@ -1,5 +1,6 @@
 package br.smartcity.monitor.sensor;
 
+import br.smartcity.monitor.metrics.Metricas;
 import br.smartcity.monitor.model.Evento;
 import br.smartcity.monitor.model.TipoEvento;
 
@@ -9,10 +10,11 @@ import java.util.concurrent.ThreadLocalRandom;
 public class SensorTransito extends Sensor {
 
     public SensorTransito(
-            BlockingQueue<Evento> fila,
-            long intervaloMs
+        BlockingQueue<Evento> fila,
+        long intervaloMs,
+        Metricas metricas
     ) {
-        super(fila, intervaloMs, "SENSOR-TRANSITO");
+        super(fila, intervaloMs, metricas, "SENSOR-TRANSITO");
     }
 
     @Override

@@ -4,6 +4,7 @@ import br.smartcity.monitor.sensor.SensorClima;
 import br.smartcity.monitor.sensor.SensorEnergia;
 import br.smartcity.monitor.sensor.SensorQualidadeAr;
 import br.smartcity.monitor.sensor.SensorTransito;
+import br.smartcity.monitor.metrics.Metricas;
 import br.smartcity.monitor.model.Evento;
 
 import java.util.concurrent.BlockingQueue;
@@ -15,12 +16,20 @@ public class Main {
 
         BlockingQueue<Evento> fila = new LinkedBlockingQueue<>();
 
+        Metricas metricas = new Metricas();
+
         // Criando os quatro sensores
-        SensorTransito sensorTransito = new SensorTransito(fila, 2000);
-        SensorClima sensorClima = new SensorClima(fila, 2000);
-        SensorEnergia sensorEnergia = new SensorEnergia(fila, 2000);
+        SensorTransito sensorTransito =
+            new SensorTransito(fila, 2000, metricas);
+
+        SensorClima sensorClima =
+            new SensorClima(fila, 2000, metricas);
+
+        SensorEnergia sensorEnergia =
+            new SensorEnergia(fila, 2000, metricas);
+
         SensorQualidadeAr sensorQualidadeAr =
-                new SensorQualidadeAr(fila, 2000);
+            new SensorQualidadeAr(fila, 2000, metricas);
 
         // Criando uma Thread para cada sensor
         Thread threadTransito =
@@ -57,5 +66,7 @@ public class Main {
         threadQualidadeAr.join();
 
         System.out.println("\nEventos na fila: " + fila.size());
+
+        metricas.exibirResumo();
     }
 }

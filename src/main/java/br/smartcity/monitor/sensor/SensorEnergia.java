@@ -1,5 +1,6 @@
 package br.smartcity.monitor.sensor;
 
+import br.smartcity.monitor.metrics.Metricas;
 import br.smartcity.monitor.model.Evento;
 import br.smartcity.monitor.model.TipoEvento;
 
@@ -10,9 +11,10 @@ public class SensorEnergia extends Sensor {
 
     public SensorEnergia(
             BlockingQueue<Evento> fila,
-            long intervaloMs
+            long intervaloMs,
+            Metricas metricas
     ) {
-        super(fila, intervaloMs, "SENSOR-ENERGIA");
+        super(fila, intervaloMs, metricas, "SENSOR-ENERGIA");
     }
 
     @Override
