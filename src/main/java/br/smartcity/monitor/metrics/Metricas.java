@@ -4,6 +4,8 @@ import br.smartcity.monitor.model.Evento;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -25,18 +27,39 @@ public class Metricas {
 
     public void registrarEventoProcessado(Evento evento) {
 
+        registrarEventoProcessado(evento, LocalDateTime.now());
+    }
+
+    /**
+     * Registra um processamento usando o mesmo instante armazenado no resultado.
+     *
+     * @return tempo de resposta do evento em milissegundos
+     */
+    public long registrarEventoProcessado(
+            Evento evento,
+            LocalDateTime timestampProcessamento
+    ) {
+
+        Objects.requireNonNull(evento, "evento nao pode ser nulo");
+        Objects.requireNonNull(
+                timestampProcessamento,
+                "timestampProcessamento nao pode ser nulo"
+        );
+
         eventosProcessados.incrementAndGet();
 
-        long tempoResposta = Duration.between(
+        long tempoResposta = Math.max(0, Duration.between(
                 evento.getTimestampCriacao(),
-                LocalDateTime.now()
-        ).toMillis();
+                timestampProcessamento
+        ).toMillis());
 
         tempoTotalRespostaMs.addAndGet(tempoResposta);
 
         maiorTempoRespostaMs.updateAndGet(
                 atual -> Math.max(atual, tempoResposta)
         );
+
+        return tempoResposta;
     }
 
     public int getEventosGerados() {
@@ -94,6 +117,10 @@ public class Metricas {
 
         return eventosProcessados.get() /
                 (tempoDecorridoMs / 1000.0);
+    }
+
+    public int getEventosPendentes(BlockingQueue<?> fila) {
+        return Objects.requireNonNull(fila, "fila nao pode ser nula").size();
     }
 
     public void exibirResumo() {
