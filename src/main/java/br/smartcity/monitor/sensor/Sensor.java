@@ -44,10 +44,6 @@ public abstract class Sensor implements Runnable {
                 // Registra que um novo evento foi gerado
                 metricas.registrarEventoGerado();
 
-                System.out.println(
-                        "[" + identificacao + "] Evento gerado: " + evento
-                );
-
                 Thread.sleep(intervaloMs);
 
             } catch (InterruptedException e) {

@@ -29,6 +29,8 @@ public final class CentralMonitoramento implements AutoCloseable {
     private final List<Thread> threads = new ArrayList<>();
     private final ConcurrentLinkedQueue<ResultadoProcessamento> resultados =
             new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<ResultadoProcessamento> resultadosRecentes =
+            new ConcurrentLinkedQueue<>();
     private final AtomicLong totalProcessadoPelaCentral = new AtomicLong();
     private final AtomicInteger eventosEmProcessamento = new AtomicInteger();
 
@@ -68,6 +70,7 @@ public final class CentralMonitoramento implements AutoCloseable {
                     tempoProcessamentoMs,
                     resultado -> {
                         resultados.add(resultado);
+                        resultadosRecentes.add(resultado);
                         totalProcessadoPelaCentral.incrementAndGet();
                     },
                     eventosEmProcessamento
@@ -167,6 +170,19 @@ public final class CentralMonitoramento implements AutoCloseable {
 
     public List<ResultadoProcessamento> getResultados() {
         return List.copyOf(resultados);
+    }
+
+    /**
+     * Entrega somente resultados ainda não lidos pelo dashboard. A fila principal
+     * de resultados permanece intacta para relatórios e testes.
+     */
+    public List<ResultadoProcessamento> drenarResultadosRecentes() {
+        List<ResultadoProcessamento> novos = new ArrayList<>();
+        ResultadoProcessamento resultado;
+        while ((resultado = resultadosRecentes.poll()) != null) {
+            novos.add(resultado);
+        }
+        return novos;
     }
 
     public synchronized boolean isEmExecucao() {

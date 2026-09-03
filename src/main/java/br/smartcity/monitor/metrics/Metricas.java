@@ -19,7 +19,8 @@ public class Metricas {
     private final AtomicLong tempoTotalRespostaMs = new AtomicLong(0);
     private final AtomicLong maiorTempoRespostaMs = new AtomicLong(0);
 
-    private final LocalDateTime inicio = LocalDateTime.now();
+    private final long inicioNanos = System.nanoTime();
+    private final AtomicLong fimNanos = new AtomicLong(0);
 
     public void registrarEventoGerado() {
         eventosGerados.incrementAndGet();
@@ -90,33 +91,30 @@ public class Metricas {
     }
 
     public double getTaxaGeracao() {
-
-        long tempoDecorridoMs = Duration.between(
-                inicio,
-                LocalDateTime.now()
-        ).toMillis();
-
-        if (tempoDecorridoMs == 0) {
+        double tempoDecorridoSegundos = getTempoDecorridoSegundos();
+        if (tempoDecorridoSegundos == 0) {
             return 0;
         }
-
-        return eventosGerados.get() /
-                (tempoDecorridoMs / 1000.0);
+        return eventosGerados.get() / tempoDecorridoSegundos;
     }
 
     public double getTaxaProcessamento() {
-
-        long tempoDecorridoMs = Duration.between(
-                inicio,
-                LocalDateTime.now()
-        ).toMillis();
-
-        if (tempoDecorridoMs == 0) {
+        double tempoDecorridoSegundos = getTempoDecorridoSegundos();
+        if (tempoDecorridoSegundos == 0) {
             return 0;
         }
+        return eventosProcessados.get() / tempoDecorridoSegundos;
+    }
 
-        return eventosProcessados.get() /
-                (tempoDecorridoMs / 1000.0);
+    /** Congela as taxas ao final de um experimento. */
+    public void finalizarColeta() {
+        fimNanos.compareAndSet(0, System.nanoTime());
+    }
+
+    public double getTempoDecorridoSegundos() {
+        long fim = fimNanos.get();
+        long instanteFinal = fim == 0 ? System.nanoTime() : fim;
+        return Math.max(0, instanteFinal - inicioNanos) / 1_000_000_000.0;
     }
 
     public int getEventosPendentes(BlockingQueue<?> fila) {

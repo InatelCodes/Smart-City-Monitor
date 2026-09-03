@@ -214,9 +214,22 @@ Os valores acima são apenas ilustrativos. Os dados reais serão obtidos durante
 * Java
 * Maven
 * Threads
-* [Tecnologia da interface — a definir]
+* JavaFX e JavaFX Charts
+* CSS
 
-### Executando o experimento
+### Executando o dashboard
+
+Com Java 17 e Maven instalados:
+
+```bash
+mvn javafx:run
+```
+
+Na aba **Monitoramento**, escolha de 1 a 4 threads, a taxa total de geração e o
+tempo artificial de processamento. Cada vez que a execução é parada, seu resumo
+é incluído na aba **Resultados** e passa a compor os gráficos comparativos.
+
+### Executando em modo texto
 
 Os argumentos opcionais são, nesta ordem: quantidade de threads (1–4), taxa total
 aproximada de eventos por segundo, duração em segundos e tempo de processamento por
@@ -224,7 +237,7 @@ evento em milissegundos.
 
 ```bash
 mvn package
-java -cp target/classes br.smartcity.monitor.Main 4 25 10 100
+mvn javafx:run -Djavafx.args="--cli 4 25 10 100"
 ```
 
 ---
