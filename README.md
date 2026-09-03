@@ -216,6 +216,17 @@ Os valores acima são apenas ilustrativos. Os dados reais serão obtidos durante
 * Threads
 * [Tecnologia da interface — a definir]
 
+### Executando o experimento
+
+Os argumentos opcionais são, nesta ordem: quantidade de threads (1–4), taxa total
+aproximada de eventos por segundo, duração em segundos e tempo de processamento por
+evento em milissegundos.
+
+```bash
+mvn package
+java -cp target/classes br.smartcity.monitor.Main 4 25 10 100
+```
+
 ---
 
 ## 📂 Estrutura do projeto
@@ -259,11 +270,11 @@ src/
 * [x] Definição do tema
 * [x] Definição do escopo
 * [x] Definição do fluxo da aplicação
-* [ ] Implementação da fila de eventos
-* [ ] Implementação dos sensores
-* [ ] Implementação da Central
-* [ ] Implementação das Threads de processamento
-* [ ] Implementação das métricas
+* [x] Implementação da fila de eventos
+* [x] Implementação dos sensores
+* [x] Implementação da Central
+* [x] Implementação das Threads de processamento
+* [x] Implementação das métricas
 * [ ] Implementação do dashboard
 * [ ] Execução dos experimentos
 * [ ] Análise dos resultados
