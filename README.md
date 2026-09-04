@@ -1,56 +1,60 @@
 # Smart City Monitor 🏙️
 
-Projeto prático da disciplina de Sistemas Operacionais.
+Projeto prático da disciplina de **Sistemas Operacionais**.
 
 ## 📌 Sobre o projeto
 
-O **Smart City Monitor** é uma aplicação que simula uma central de monitoramento de uma cidade inteligente. A cidade possui diferentes fontes de informação, como sensores de trânsito, clima, consumo de energia e qualidade do ar, que geram notificações continuamente.
+O **Smart City Monitor** é uma aplicação em Java que simula uma **Central de Monitoramento de uma cidade inteligente**.
 
-O foco do projeto não está apenas no monitoramento dos sensores, mas na análise de **como uma Central de Monitoramento se comporta ao receber diferentes volumes de notificações e ao utilizar diferentes quantidades de Threads para processá-las**.
+O projeto utiliza uma lista fixa de eventos, representando informações provenientes de diferentes tipos de sensores:
 
-A aplicação permitirá aumentar progressivamente a frequência de geração de eventos até que uma única Thread da Central não consiga mais acompanhar a demanda. Em seguida, novas Threads serão adicionadas para verificar se o sistema consegue recuperar sua capacidade de processamento.
+- 🚦 Trânsito
+- 🌧️ Clima
+- ⚡ Energia
+- 🌫️ Qualidade do ar
 
-Dessa forma, será possível observar e analisar experimentalmente os efeitos do uso de múltiplas Threads sobre o desempenho da aplicação.
+O foco principal do projeto é analisar o comportamento da **Central de Monitoramento ao processar uma mesma carga de eventos utilizando diferentes quantidades de Threads**.
+
+Os eventos são colocados em uma fila compartilhada e as Threads da Central atuam como **consumidoras**, retirando os eventos da fila e realizando seu processamento de forma concorrente.
+
+Dessa forma, é possível comparar configurações com **1, 2, 3 e 4 Threads**, observando métricas como vazão, tempo total, tempo médio de resposta e quantidade de eventos processados ou pendentes.
 
 ---
 
 ## 🎯 Objetivos
 
-* Simular uma Central de Monitoramento de uma cidade inteligente;
-* Gerar notificações provenientes de diferentes tipos de sensores;
-* Processar as notificações de forma concorrente;
-* Analisar o comportamento da aplicação conforme a taxa de eventos aumenta;
-* Identificar o ponto em que uma única Thread não consegue acompanhar a demanda;
-* Comparar o desempenho utilizando 1, 2, 3 e 4 Threads;
-* Medir métricas como tempo de resposta, quantidade de eventos processados e eventos pendentes;
-* Apresentar os resultados de forma visual.
+- Simular uma Central de Monitoramento de uma cidade inteligente;
+- Representar diferentes tipos de eventos provenientes de sensores;
+- Utilizar uma fila compartilhada para armazenar os eventos;
+- Processar os eventos de forma concorrente;
+- Comparar o processamento utilizando 1, 2, 3 e 4 Threads;
+- Observar os efeitos da concorrência sobre o tempo de processamento;
+- Medir a quantidade de eventos processados e pendentes;
+- Calcular a taxa de processamento (eventos por segundo);
+- Acompanhar o experimento por meio de um dashboard;
+- Comparar os resultados de diferentes configurações.
 
 ---
 
 ## 🏗️ Funcionamento
 
-Os sensores atuam como **fontes de eventos**, gerando notificações em diferentes frequências.
+A aplicação trabalha com uma **lista fixa de eventos**. Esses eventos são inseridos em uma fila antes do início do processamento.
 
-Os eventos são enviados para uma **fila compartilhada**, que funciona como ponto de comunicação entre os sensores e a Central.
+A Central de Monitoramento cria a quantidade de Threads definida para o experimento. Cada Thread retira eventos da fila e os processa de forma independente.
 
-A Central possui uma ou mais Threads responsáveis por retirar os eventos da fila e processá-los.
-
-O número de Threads poderá ser alterado durante os experimentos para analisar como isso afeta a capacidade de processamento do sistema.
+Não existe uma Thread dedicada à geração contínua dos eventos durante o experimento. O objetivo é manter a **carga de trabalho fixa** e variar a quantidade de Threads da Central.
 
 ### Fluxo da aplicação
 
 ```mermaid
 flowchart TD
-    A["🏙️ Sensores da cidade"] --> B["📨 Geração de eventos"]
+    A["📋 Lista fixa de eventos"] --> B["📨 Fila compartilhada"]
+    B --> C["🖥️ Central de Monitoramento"]
 
-    B --> C["📋 Fila de eventos"]
-
-    C --> D["🖥️ Central de Monitoramento"]
-
-    D --> E1["🧵 Thread 1"]
-    D --> E2["🧵 Thread 2"]
-    D --> E3["🧵 Thread 3"]
-    D --> E4["🧵 Thread 4"]
+    C --> E1["🧵 Processador 1"]
+    C --> E2["🧵 Processador 2"]
+    C --> E3["🧵 Processador 3"]
+    C --> E4["🧵 Processador 4"]
 
     E1 --> F["⚙️ Processamento"]
     E2 --> F
@@ -59,220 +63,265 @@ flowchart TD
 
     F --> G["📊 Métricas"]
     G --> H["📈 Dashboard"]
-
-    style A fill:#e8f4ff
-    style C fill:#fff4d6
-    style D fill:#e8f5e9
-    style H fill:#f3e8ff
 ```
 
-> **Observação:** durante os experimentos, apenas uma parte das Threads poderá estar ativa. O sistema permitirá comparar o comportamento com 1, 2, 3 e 4 Threads.
+Durante cada experimento, apenas a quantidade configurada de Threads é criada. Assim, a mesma carga de eventos pode ser processada com diferentes níveis de concorrência.
 
 ---
 
-## 🚦 Fontes de eventos
+## 🚦 Tipos de eventos
 
-A aplicação poderá simular diferentes tipos de sensores:
+Os eventos utilizados na simulação representam quatro categorias:
 
-* 🚦 **Trânsito** — congestionamentos, acidentes e alterações no fluxo de veículos;
-* 🌧️ **Clima** — temperatura, chuva e umidade;
-* ⚡ **Energia** — consumo de energia em diferentes regiões;
-* 🌫️ **Qualidade do ar** — índices de qualidade do ar e possíveis situações críticas.
+- 🚦 **Trânsito** — congestionamentos, acidentes e alterações no fluxo de veículos;
+- 🌧️ **Clima** — temperatura, chuva e umidade;
+- ⚡ **Energia** — consumo de energia em diferentes regiões;
+- 🌫️ **Qualidade do ar** — índices de qualidade do ar e situações críticas.
 
-Os sensores não serão responsáveis pelo processamento das informações. Seu papel será principalmente **gerar eventos e enviá-los para a fila da Central**.
+Os sensores representam as fontes conceituais desses eventos. O processamento é realizado exclusivamente pelas Threads da Central.
 
 ---
 
 ## 🧵 Uso de Threads
 
-O principal conceito estudado no projeto será a utilização de **múltiplas Threads para o processamento concorrente dos eventos**.
+O principal conceito estudado no projeto é o **processamento concorrente utilizando múltiplas Threads**.
 
-Inicialmente, a Central poderá funcionar com apenas uma Thread:
-
-```text
-                Fila
-                  │
-                  ▼
-            ┌──────────┐
-            │ Thread 1 │
-            └────┬─────┘
-                 │
-                 ▼
-             Processar
-```
-
-Conforme a quantidade de eventos aumenta, a Thread poderá não conseguir processar todos os eventos na mesma velocidade em que eles são gerados.
-
-Nesse momento, novas Threads serão adicionadas:
+Com uma única Thread:
 
 ```text
-                Fila
-                  │
-        ┌─────────┼─────────┐
-        ▼         ▼         ▼
-   Thread 1   Thread 2   Thread 3
-        │         │         │
-        └─────────┼─────────┘
-                  ▼
-              Resultados
+             Fila
+               │
+               ▼
+        ┌─────────────┐
+        │   Thread 1  │
+        └──────┬──────┘
+               │
+               ▼
+          Processar
 ```
 
-O objetivo é observar se o aumento do número de Threads permite que a Central processe uma quantidade maior de eventos e reduza o tempo de resposta.
+Com várias Threads:
+
+```text
+                 Fila
+                   │
+          ┌────────┼────────┐
+          ▼        ▼        ▼
+      Thread 1  Thread 2  Thread 3
+          │        │        │
+          └────────┼────────┘
+                   ▼
+              Processar
+```
+
+O sistema suporta de **1 a 4 Threads consumidoras**.
+
+Como as Threads compartilham a mesma fila, é necessário utilizar mecanismos de concorrência adequados para evitar perda ou processamento duplicado de eventos.
 
 ---
 
 ## 📈 Experimentos
 
-Os experimentos serão realizados aumentando progressivamente a frequência de geração de eventos.
+O experimento utiliza a **mesma lista de eventos** e altera a quantidade de Threads da Central.
 
-### Experimento 1 — Baixa carga
-
-A aplicação começa com uma frequência baixa de eventos e uma única Thread.
-
-O objetivo é estabelecer um comportamento inicial do sistema.
-
-### Experimento 2 — Aumento da carga
-
-A frequência de eventos será aumentada gradualmente enquanto a Central continua utilizando apenas uma Thread.
-
-Será observado o momento em que a capacidade de processamento da Central começa a ser comprometida.
-
-### Experimento 3 — Aumento do número de Threads
-
-Após identificar uma situação de sobrecarga, serão adicionadas novas Threads:
+As configurações podem ser executadas com:
 
 ```text
 1 Thread → 2 Threads → 3 Threads → 4 Threads
 ```
 
-Os resultados serão comparados mantendo condições semelhantes de carga.
+Para cada configuração, são coletadas informações sobre o processamento.
 
-### Experimento 4 — Comparação dos resultados
+### Comparação
 
-Os dados coletados serão utilizados para comparar o desempenho das diferentes configurações.
+Exemplo de tabela de resultados:
 
-Exemplo de tabela:
+| Threads | Eventos gerados | Eventos processados | Pendentes | Taxa de processamento | Tempo médio |
+|--------:|----------------:|--------------------:|---------:|----------------------:|------------:|
+| 1       | —               | —                   | —        | —                     | —           |
+| 2       | —               | —                   | —        | —                     | —           |
+| 3       | —               | —                   | —        | —                     | —           |
+| 4       | —               | —                   | —        | —                     | —           |
 
-| Threads | Eventos gerados | Eventos processados | Eventos pendentes | Tempo médio |
-| ------: | --------------: | ------------------: | ----------------: | ----------: |
-|       1 |               — |                   — |                 — |           — |
-|       2 |               — |                   — |                 — |           — |
-|       3 |               — |                   — |                 — |           — |
-|       4 |               — |                   — |                 — |           — |
-
-Os valores serão preenchidos a partir dos resultados obtidos durante os testes.
+Os valores são preenchidos automaticamente a partir das execuções realizadas pela aplicação.
 
 ---
 
 ## 📊 Métricas
 
-Durante os experimentos, serão coletadas métricas para permitir uma análise quantitativa do comportamento do sistema.
+Durante os experimentos, a aplicação acompanha diferentes métricas:
 
-Entre elas:
+- **Eventos gerados:** quantidade total de eventos colocados na fila;
+- **Eventos processados:** quantidade de eventos efetivamente processados pela Central;
+- **Eventos pendentes:** quantidade de eventos que ainda permanecem na fila;
+- **Taxa de processamento:** quantidade média de eventos processados por segundo;
+- **Tempo médio de resposta:** tempo médio entre a entrada do evento e sua conclusão;
+- **Tempo total:** duração total do processamento do experimento;
+- **Eventos por tipo:** quantidade de eventos processados de Trânsito, Clima, Energia e Qualidade do ar.
 
-* **Tempo de resposta:** tempo entre a geração de um evento e seu processamento pela Central;
-* **Eventos recebidos:** quantidade de eventos gerados/recebidos pela Central;
-* **Eventos processados:** quantidade de eventos efetivamente processados;
-* **Eventos pendentes:** eventos que permanecem aguardando processamento na fila;
-* **Taxa de geração:** quantidade de eventos gerados por segundo;
-* **Taxa de processamento:** quantidade de eventos processados por segundo.
-
-Os resultados serão apresentados visualmente por meio de um dashboard e gráficos.
+Essas métricas permitem observar como a quantidade de Threads influencia o processamento da carga.
 
 ---
 
 ## 🖥️ Dashboard
 
-A aplicação terá uma interface visual para acompanhar o experimento em tempo real.
+A aplicação possui uma interface gráfica desenvolvida com **JavaFX**.
 
-Entre as informações apresentadas estarão:
+Na aba **Monitoramento**, é possível:
 
-```text
-┌─────────────────────────────────────────┐
-│        SMART CITY MONITOR               │
-├─────────────────────────────────────────┤
-│                                         │
-│ Threads ativas:          2              │
-│ Eventos recebidos:       8.421          │
-│ Eventos processados:     7.982          │
-│ Eventos pendentes:         439          │
-│                                         │
-│ Taxa de entrada:          50 eventos/s  │
-│ Taxa de processamento:    46 eventos/s  │
-│                                         │
-│ Tempo médio:              342 ms        │
-│                                         │
-└─────────────────────────────────────────┘
-```
+- selecionar a quantidade de Threads da Central, de 1 a 4;
+- configurar o tempo artificial de processamento de cada evento;
+- iniciar o experimento;
+- acompanhar os eventos processados;
+- visualizar eventos pendentes;
+- acompanhar a taxa de processamento;
+- visualizar o tempo médio e o tempo total;
+- acompanhar os eventos processados por tipo;
+- visualizar os eventos em uma tabela;
+- acompanhar a evolução da fila em um gráfico;
+- parar ou resetar o experimento.
 
-Os valores acima são apenas ilustrativos. Os dados reais serão obtidos durante os experimentos.
+A aba **Resultados** mantém os experimentos finalizados e permite comparar as configurações utilizadas, incluindo gráficos de processamento e latência.
 
 ---
 
 ## 🛠️ Tecnologias
 
-* Java
-* Maven
-* Threads
-* JavaFX e JavaFX Charts
-* CSS
+- **Java**
+- **JavaFX**
+- **JavaFX Charts**
+- **Maven**
+- **Java Threads**
+- **BlockingQueue**
+- **CSS**
+- **JUnit**
 
-### Executando o dashboard
+---
 
-Com Java 17 e Maven instalados:
+## ▶️ Como executar
+
+### Pré-requisitos
+
+É necessário ter instalado:
+
+- JDK;
+- Maven.
+
+### Executar o dashboard
+
+Abra um terminal na pasta raiz do projeto e execute:
 
 ```bash
-mvn javafx:run
+mvn clean javafx:run
 ```
 
-Na aba **Monitoramento**, escolha de 1 a 4 threads, a taxa total de geração e o
-tempo artificial de processamento. Cada vez que a execução é parada, seu resumo
-é incluído na aba **Resultados** e passa a compor os gráficos comparativos.
+O comando inicia a aplicação JavaFX.
 
-### Executando em modo texto
+### Executar os testes
 
-Os argumentos opcionais são, nesta ordem: quantidade de threads (1–4), taxa total
-aproximada de eventos por segundo, duração em segundos e tempo de processamento por
-evento em milissegundos.
+Para executar os testes automatizados:
 
 ```bash
-mvn package
-mvn javafx:run -Djavafx.args="--cli 4 25 10 100"
+mvn clean test
 ```
+
+Os testes verificam principalmente o comportamento da Central de Monitoramento e do fluxo de execução do experimento.
 
 ---
 
 ## 📂 Estrutura do projeto
 
-A estrutura inicial planejada é:
-
 ```text
-src/
-└── main/
-    └── java/
-        └── br/
-            └── smartcity/
-                └── monitor/
-                    ├── Main.java
-                    │
-                    ├── central/
-                    │   ├── CentralMonitoramento.java
-                    │   └── ProcessadorEventos.java
-                    │
-                    ├── sensor/
-                    │   ├── Sensor.java
-                    │   ├── SensorTransito.java
-                    │   ├── SensorClima.java
-                    │   ├── SensorEnergia.java
-                    │   └── SensorQualidadeAr.java
-                    │
-                    ├── model/
-                    │   ├── Evento.java
-                    │   └── ResultadoProcessamento.java
-                    │
-                    └── metrics/
-                        └── Metricas.java
+Smart-City-Monitor/
+├── pom.xml
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── br/
+│   │   │       └── smartcity/
+│   │   │           └── monitor/
+│   │   │               ├── central/
+│   │   │               │   ├── CentralMonitoramento.java
+│   │   │               │   └── ProcessadorEventos.java
+│   │   │               │
+│   │   │               ├── config/
+│   │   │               │   └── ConfiguracaoExperimento.java
+│   │   │               │
+│   │   │               ├── metrics/
+│   │   │               │   └── Metricas.java
+│   │   │               │
+│   │   │               ├── model/
+│   │   │               │   ├── Evento.java
+│   │   │               │   ├── ResultadoProcessamento.java
+│   │   │               │   └── TipoEvento.java
+│   │   │               │
+│   │   │               ├── sensor/
+│   │   │               │   ├── ListaEventos.java
+│   │   │               │   ├── Sensor.java
+│   │   │               │   ├── SensorClima.java
+│   │   │               │   ├── SensorEnergia.java
+│   │   │               │   ├── SensorQualidadeAr.java
+│   │   │               │   └── SensorTransito.java
+│   │   │               │
+│   │   │               └── ui/
+│   │   │                   ├── DashboardController.java
+│   │   │                   ├── DashboardSnapshot.java
+│   │   │                   ├── ExperimentoResultado.java
+│   │   │                   ├── MonitoramentoView.java
+│   │   │                   ├── ResultadosView.java
+│   │   │                   └── SmartCityApplication.java
+│   │   │
+│   │   └── resources/
+│   │       └── br/
+│   │           └── smartcity/
+│   │               └── monitor/
+│   │                   └── ui/
+│   │                       └── dashboard.css
+│   │
+│   └── test/
+│       └── java/
+│           └── br/
+│               └── smartcity/
+│                   └── monitor/
+│                       ├── central/
+│                       │   └── CentralMonitoramentoTest.java
+│                       └── ui/
+│                           └── DashboardControllerTest.java
+│
+└── README.md
 ```
+
+---
+
+## 📌 Principais componentes
+
+### `CentralMonitoramento`
+
+Responsável por controlar as Threads que realizam o processamento dos eventos.
+
+### `ProcessadorEventos`
+
+Representa uma Thread consumidora. Cada processador retira eventos da fila e executa seu processamento.
+
+### `ListaEventos`
+
+Fornece a lista fixa de eventos utilizada nos experimentos.
+
+### `Metricas`
+
+Mantém os contadores e cálculos relacionados ao desempenho do processamento.
+
+### `DashboardController`
+
+Faz a ligação entre a execução do experimento, as métricas e a interface gráfica.
+
+### `MonitoramentoView`
+
+Exibe o acompanhamento do experimento em tempo real.
+
+### `ResultadosView`
+
+Apresenta os experimentos finalizados e permite comparar seus resultados.
 
 ---
 
@@ -280,15 +329,24 @@ src/
 
 **Em desenvolvimento**
 
-* [x] Definição do tema
-* [x] Definição do escopo
-* [x] Definição do fluxo da aplicação
-* [x] Implementação da fila de eventos
-* [x] Implementação dos sensores
-* [x] Implementação da Central
-* [x] Implementação das Threads de processamento
-* [x] Implementação das métricas
-* [ ] Implementação do dashboard
-* [ ] Execução dos experimentos
-* [ ] Análise dos resultados
-* [ ] Documentação final
+- [x] Definição do tema
+- [x] Definição do escopo
+- [x] Definição da arquitetura do experimento
+- [x] Implementação da fila de eventos
+- [x] Implementação da lista fixa de eventos
+- [x] Implementação da Central
+- [x] Implementação das Threads de processamento
+- [x] Implementação das métricas
+- [x] Contagem de eventos por tipo
+- [x] Implementação do dashboard
+- [x] Implementação da tela de resultados
+- [x] Testes automatizados
+- [ ] Execução e comparação dos experimentos
+- [ ] Análise dos resultados
+- [ ] Documentação final
+
+---
+
+## 👥 Projeto acadêmico
+
+Projeto desenvolvido para a disciplina de **Sistemas Operacionais**, com foco no estudo de **Threads, concorrência, sincronização e desempenho de processamento**.
