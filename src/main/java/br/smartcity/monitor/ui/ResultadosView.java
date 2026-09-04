@@ -108,13 +108,16 @@ public final class ResultadosView extends ScrollPane {
 
     private LineChart<Number, Number> criarGraficoCarga() {
         NumberAxis eixoX = new NumberAxis();
-        eixoX.setLabel("Taxa configurada (eventos/s)");
+        eixoX.setLabel("Tempo de execução (segundos)");
+
         NumberAxis eixoY = new NumberAxis();
-        eixoY.setLabel("Taxa observada (eventos/s)");
+        eixoY.setLabel("Eventos pendentes");
+
         LineChart<Number, Number> grafico = new LineChart<>(eixoX, eixoY);
-        grafico.setTitle("Taxa de geração × capacidade de processamento");
+        grafico.setTitle("Carga da fila");
         grafico.setAnimated(false);
         grafico.setPrefHeight(350);
+
         return grafico;
     }
 
@@ -133,7 +136,6 @@ public final class ResultadosView extends ScrollPane {
                 coluna("#", r -> String.valueOf(r.numero())),
                 coluna("FINALIZADO", r -> r.finalizadoEm().format(DATA_HORA)),
                 coluna("THREADS", r -> String.valueOf(r.configuracao().quantidadeThreads())),
-                coluna("ENTRADA", r -> r.configuracao().taxaGeracao() + " ev/s"),
                 coluna("PROC./EVENTO", r -> r.configuracao().tempoProcessamentoMs() + " ms"),
                 coluna("DURAÇÃO", r -> String.format(PT_BR, "%.1f s", r.duracaoSegundos())),
                 coluna("GERADOS", r -> INTEIRO.format(r.eventosGerados())),
@@ -184,19 +186,7 @@ public final class ResultadosView extends ScrollPane {
                         entry.getKey(), entry.getValue().tempoMedioRespostaMs())));
         graficoLatencia.getData().setAll(latencia);
 
-        XYChart.Series<Number, Number> entrada = new XYChart.Series<>();
-        entrada.setName("Entrada observada");
-        XYChart.Series<Number, Number> saida = new XYChart.Series<>();
-        saida.setName("Processamento observado");
-        resultados.stream()
-                .sorted(Comparator.comparingInt(r -> r.configuracao().taxaGeracao()))
-                .forEach(r -> {
-                    entrada.getData().add(new XYChart.Data<>(
-                            r.configuracao().taxaGeracao(), r.taxaGeracaoReal()));
-                    saida.getData().add(new XYChart.Data<>(
-                            r.configuracao().taxaGeracao(), r.taxaProcessamento()));
-                });
-        graficoCarga.getData().setAll(entrada, saida);
+        graficoCarga.getData().clear();
     }
 
     private static javafx.scene.layout.ColumnConstraints colunaPercentual(double percentual) {

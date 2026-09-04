@@ -13,7 +13,6 @@ public record ExperimentoResultado(
         int eventosGerados,
         int eventosProcessados,
         int eventosPendentes,
-        double taxaGeracaoReal,
         double taxaProcessamento,
         double tempoMedioRespostaMs
 ) {
