@@ -87,10 +87,6 @@ public class Metricas {
         return tempoTotalRespostaMs.get();
     }
 
-    public long getMaiorTempoRespostaMs() {
-        return maiorTempoRespostaMs.get();
-    }
-
     public int getEventosTransito() {
         return eventosTransito.get();
     }
@@ -116,14 +112,6 @@ public class Metricas {
         }
 
         return (double) tempoTotalRespostaMs.get() / processados;
-    }
-
-    public double getTaxaGeracao() {
-        double tempoDecorridoSegundos = getTempoDecorridoSegundos();
-        if (tempoDecorridoSegundos == 0) {
-            return 0;
-        }
-        return eventosGerados.get() / tempoDecorridoSegundos;
     }
 
     public double getTaxaProcessamento() {
@@ -164,16 +152,6 @@ public class Metricas {
         System.out.printf(
                 "Tempo médio de resposta: %.2f ms%n",
                 getTempoMedioRespostaMs()
-        );
-
-        System.out.println(
-                "Maior tempo de resposta: "
-                        + getMaiorTempoRespostaMs() + " ms"
-        );
-
-        System.out.printf(
-                "Taxa de geração: %.2f eventos/s%n",
-                getTaxaGeracao()
         );
 
         System.out.printf(
