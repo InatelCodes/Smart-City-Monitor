@@ -5,11 +5,9 @@ import br.smartcity.monitor.config.ConfiguracaoExperimento;
 import br.smartcity.monitor.metrics.Metricas;
 import br.smartcity.monitor.model.Evento;
 import br.smartcity.monitor.model.ResultadoProcessamento;
-import br.smartcity.monitor.sensor.SensorClima;
-import br.smartcity.monitor.sensor.SensorEnergia;
-import br.smartcity.monitor.sensor.SensorQualidadeAr;
-import br.smartcity.monitor.sensor.SensorTransito;
+import br.smartcity.monitor.sensor.ListaEventos;
 
+import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -23,7 +21,6 @@ public final class DashboardController {
     private BlockingQueue<Evento> fila;
     private Metricas metricas;
     private CentralMonitoramento central;
-    private List<Thread> threadsSensores = List.of();
     private ConfiguracaoExperimento configuracaoAtual;
     private ExperimentoResultado ultimoResultado;
     private volatile Estado estado = Estado.PARADO;
@@ -31,12 +28,27 @@ public final class DashboardController {
 
     public synchronized void iniciar(ConfiguracaoExperimento configuracao) {
         if (estado == Estado.EXECUTANDO) {
-            throw new IllegalStateException("Já existe um experimento em execução");
+            throw new IllegalStateException(
+                    "Já existe um experimento em execução"
+            );
         }
 
         configuracaoAtual = configuracao;
+
         fila = new LinkedBlockingQueue<>();
         metricas = new Metricas();
+
+        /*
+        * Os eventos são definidos previamente.
+        * Não existe uma Thread responsável pela geração.
+        */
+        List<Evento> eventos = ListaEventos.criarEventos();
+
+        for (Evento evento : eventos) {
+            fila.add(evento);
+            metricas.registrarEventoGerado();
+        }
+
         central = new CentralMonitoramento(
                 fila,
                 metricas,
@@ -44,42 +56,26 @@ public final class DashboardController {
                 configuracao.tempoProcessamentoMs()
         );
 
-        long intervaloPorSensorMs = Math.max(
-                1,
-                Math.round(4_000.0 / configuracao.taxaGeracao())
-        );
-
-        threadsSensores = List.of(
-                new Thread(new SensorTransito(fila, intervaloPorSensorMs, metricas),
-                        "Sensor-Trânsito"),
-                new Thread(new SensorClima(fila, intervaloPorSensorMs, metricas),
-                        "Sensor-Clima"),
-                new Thread(new SensorEnergia(fila, intervaloPorSensorMs, metricas),
-                        "Sensor-Energia"),
-                new Thread(new SensorQualidadeAr(fila, intervaloPorSensorMs, metricas),
-                        "Sensor-Qualidade-do-Ar")
-        );
-
         central.iniciar();
-        threadsSensores.forEach(Thread::start);
+
         estado = Estado.EXECUTANDO;
     }
 
-    /** Para produtores e consumidores e devolve o resumo definitivo da execução. */
-    public synchronized ExperimentoResultado parar() throws InterruptedException {
+    public synchronized ExperimentoResultado parar()
+        throws InterruptedException {
+
         if (estado != Estado.EXECUTANDO) {
             return ultimoResultado;
         }
 
-        threadsSensores.forEach(Thread::interrupt);
-        for (Thread sensor : threadsSensores) {
-            sensor.join();
-        }
         central.encerrar();
+
         metricas.finalizarColeta();
+
         estado = Estado.FINALIZADO;
 
         DashboardSnapshot snapshot = criarSnapshot();
+
         ultimoResultado = new ExperimentoResultado(
                 proximoNumeroExperimento++,
                 LocalDateTime.now(),
@@ -88,10 +84,10 @@ public final class DashboardController {
                 snapshot.eventosGerados(),
                 snapshot.eventosProcessados(),
                 snapshot.eventosPendentes(),
-                snapshot.taxaGeracao(),
                 snapshot.taxaProcessamento(),
                 snapshot.tempoMedioRespostaMs()
         );
+
         return ultimoResultado;
     }
 
@@ -105,7 +101,6 @@ public final class DashboardController {
         fila = null;
         metricas = null;
         central = null;
-        threadsSensores = List.of();
         configuracaoAtual = null;
         ultimoResultado = null;
         estado = Estado.PARADO;
@@ -124,10 +119,13 @@ public final class DashboardController {
                 metricas.getEventosProcessados(),
                 central.getEventosPendentes(),
                 central.getQuantidadeThreadsAtivas(),
-                metricas.getTaxaGeracao(),
                 metricas.getTaxaProcessamento(),
                 metricas.getTempoMedioRespostaMs(),
-                metricas.getTempoDecorridoSegundos()
+                metricas.getTempoDecorridoSegundos(),
+                metricas.getEventosTransito(),
+                metricas.getEventosClima(),
+                metricas.getEventosEnergia(),
+                metricas.getEventosQualidadeAr()
         );
     }
 
