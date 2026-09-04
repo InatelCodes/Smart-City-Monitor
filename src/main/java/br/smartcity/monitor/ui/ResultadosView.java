@@ -35,7 +35,6 @@ public final class ResultadosView extends ScrollPane {
     private final ObservableList<ExperimentoResultado> resultados = FXCollections.observableArrayList();
     private final BarChart<String, Number> graficoProcessamento;
     private final LineChart<Number, Number> graficoLatencia;
-    private final LineChart<Number, Number> graficoCarga;
     private final TableView<ExperimentoResultado> tabela = new TableView<>(resultados);
 
     public ResultadosView() {
@@ -51,14 +50,12 @@ public final class ResultadosView extends ScrollPane {
 
         graficoProcessamento = criarGraficoProcessamento();
         graficoLatencia = criarGraficoLatencia();
-        graficoCarga = criarGraficoCarga();
 
         GridPane comparacoes = new GridPane();
         comparacoes.setHgap(16);
         comparacoes.setVgap(16);
         comparacoes.add(criarCardGrafico(graficoProcessamento), 0, 0);
         comparacoes.add(criarCardGrafico(graficoLatencia), 1, 0);
-        comparacoes.add(criarCardGrafico(graficoCarga), 0, 1, 2, 1);
         GridPane.setHgrow(comparacoes.getChildren().get(0), Priority.ALWAYS);
         GridPane.setHgrow(comparacoes.getChildren().get(1), Priority.ALWAYS);
         comparacoes.getColumnConstraints().addAll(
@@ -103,21 +100,6 @@ public final class ResultadosView extends ScrollPane {
         grafico.setLegendVisible(false);
         grafico.setAnimated(false);
         grafico.setPrefHeight(330);
-        return grafico;
-    }
-
-    private LineChart<Number, Number> criarGraficoCarga() {
-        NumberAxis eixoX = new NumberAxis();
-        eixoX.setLabel("Tempo de execução (segundos)");
-
-        NumberAxis eixoY = new NumberAxis();
-        eixoY.setLabel("Eventos pendentes");
-
-        LineChart<Number, Number> grafico = new LineChart<>(eixoX, eixoY);
-        grafico.setTitle("Carga da fila");
-        grafico.setAnimated(false);
-        grafico.setPrefHeight(350);
-
         return grafico;
     }
 
@@ -186,7 +168,6 @@ public final class ResultadosView extends ScrollPane {
                         entry.getKey(), entry.getValue().tempoMedioRespostaMs())));
         graficoLatencia.getData().setAll(latencia);
 
-        graficoCarga.getData().clear();
     }
 
     private static javafx.scene.layout.ColumnConstraints colunaPercentual(double percentual) {
