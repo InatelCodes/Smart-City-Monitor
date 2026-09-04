@@ -101,16 +101,24 @@ public final class SmartCityApplication extends Application {
 
     private void iniciarExperimento() {
         try {
-            ConfiguracaoExperimento configuracao = new ConfiguracaoExperimento(
-                    monitoramento.getQuantidadeThreads(),
-                    monitoramento.getTaxaGeracao(),
-                    monitoramento.getTempoProcessamento());
+            ConfiguracaoExperimento configuracao =
+                    new ConfiguracaoExperimento(
+                            monitoramento.getQuantidadeThreads(),
+                            monitoramento.getTempoProcessamento()
+                    );
+
             monitoramento.limparDados();
+
             controller.iniciar(configuracao);
+
             aplicarEstado(DashboardController.Estado.EXECUTANDO);
             atualizarPainel();
+
         } catch (RuntimeException e) {
-            mostrarErro("Não foi possível iniciar", e.getMessage());
+            mostrarErro(
+                    "Não foi possível iniciar",
+                    e.getMessage()
+            );
         }
     }
 

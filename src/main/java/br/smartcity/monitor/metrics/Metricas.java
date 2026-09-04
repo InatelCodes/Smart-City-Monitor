@@ -13,6 +13,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class Metricas {
 
+    private final AtomicInteger eventosTransito = new AtomicInteger();
+    private final AtomicInteger eventosClima = new AtomicInteger();
+    private final AtomicInteger eventosEnergia = new AtomicInteger();
+    private final AtomicInteger eventosQualidadeAr = new AtomicInteger();
+
     private final AtomicInteger eventosGerados = new AtomicInteger(0);
     private final AtomicInteger eventosProcessados = new AtomicInteger(0);
 
@@ -49,6 +54,13 @@ public class Metricas {
 
         eventosProcessados.incrementAndGet();
 
+        switch (evento.getTipo()) {
+            case TRANSITO -> eventosTransito.incrementAndGet();
+            case CLIMA -> eventosClima.incrementAndGet();
+            case ENERGIA -> eventosEnergia.incrementAndGet();
+            case QUALIDADE_AR -> eventosQualidadeAr.incrementAndGet();
+        }
+
         long tempoResposta = Math.max(0, Duration.between(
                 evento.getTimestampCriacao(),
                 timestampProcessamento
@@ -77,6 +89,22 @@ public class Metricas {
 
     public long getMaiorTempoRespostaMs() {
         return maiorTempoRespostaMs.get();
+    }
+
+    public int getEventosTransito() {
+        return eventosTransito.get();
+    }
+
+    public int getEventosClima() {
+        return eventosClima.get();
+    }
+
+    public int getEventosEnergia() {
+        return eventosEnergia.get();
+    }
+
+    public int getEventosQualidadeAr() {
+        return eventosQualidadeAr.get();
     }
 
     public double getTempoMedioRespostaMs() {
