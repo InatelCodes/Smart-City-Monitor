@@ -25,17 +25,21 @@ public final class CentralMonitoramento implements AutoCloseable {
     private final Metricas metricas;
     private final int quantidadeThreads;
     private final long tempoProcessamentoMs;
+
     private final List<ProcessadorEventos> processadores = new ArrayList<>();
     private final List<Thread> threads = new ArrayList<>();
+
     private final ConcurrentLinkedQueue<ResultadoProcessamento> resultados =
             new ConcurrentLinkedQueue<>();
+
     private final ConcurrentLinkedQueue<ResultadoProcessamento> resultadosRecentes =
             new ConcurrentLinkedQueue<>();
+
     private final AtomicLong totalProcessadoPelaCentral = new AtomicLong();
     private final AtomicInteger eventosEmProcessamento = new AtomicInteger();
 
-    private boolean iniciada;
-    private boolean encerrada;
+    private volatile boolean iniciada;
+    private volatile boolean encerrada;
 
     public CentralMonitoramento(
             BlockingQueue<Evento> fila,
@@ -44,24 +48,42 @@ public final class CentralMonitoramento implements AutoCloseable {
             long tempoProcessamentoMs
     ) {
         if (quantidadeThreads < MIN_THREADS || quantidadeThreads > MAX_THREADS) {
-            throw new IllegalArgumentException("quantidadeThreads deve estar entre 1 e 4");
-        }
-        if (tempoProcessamentoMs < 0) {
-            throw new IllegalArgumentException("tempoProcessamentoMs nao pode ser negativo");
+            throw new IllegalArgumentException(
+                    "quantidadeThreads deve estar entre 1 e 4"
+            );
         }
 
-        this.fila = Objects.requireNonNull(fila, "fila nao pode ser nula");
-        this.metricas = Objects.requireNonNull(metricas, "metricas nao pode ser nula");
+        if (tempoProcessamentoMs < 0) {
+            throw new IllegalArgumentException(
+                    "tempoProcessamentoMs nao pode ser negativo"
+            );
+        }
+
+        this.fila = Objects.requireNonNull(
+                fila,
+                "fila nao pode ser nula"
+        );
+
+        this.metricas = Objects.requireNonNull(
+                metricas,
+                "metricas nao pode ser nula"
+        );
+
         this.quantidadeThreads = quantidadeThreads;
         this.tempoProcessamentoMs = tempoProcessamentoMs;
     }
 
     public synchronized void iniciar() {
         if (iniciada) {
-            throw new IllegalStateException("a Central so pode ser iniciada uma vez");
+            throw new IllegalStateException(
+                    "a Central so pode ser iniciada uma vez"
+            );
         }
 
         iniciada = true;
+        encerrada = false;
+
+        int quantidadeEventosEsperados = fila.size();
 
         for (int i = 1; i <= quantidadeThreads; i++) {
             ProcessadorEventos processador = new ProcessadorEventos(
@@ -75,12 +97,46 @@ public final class CentralMonitoramento implements AutoCloseable {
                     },
                     eventosEmProcessamento
             );
-            Thread thread = new Thread(processador, "Processador-Eventos-" + i);
+
+            Thread thread = new Thread(
+                    processador,
+                    "Processador-Eventos-" + i
+            );
 
             processadores.add(processador);
             threads.add(thread);
+
             thread.start();
         }
+
+        iniciarMonitoramentoDoFim(quantidadeEventosEsperados);
+    }
+
+    /**
+     * Monitora o total de eventos processados.
+     *
+     * Quando todos os eventos que estavam na fila no início
+     * já foram processados, a Central é encerrada automaticamente.
+     */
+    private void iniciarMonitoramentoDoFim(int quantidadeEventosEsperados) {
+        Thread monitor = new Thread(() -> {
+            try {
+                boolean concluido = aguardarEventosProcessados(
+                        quantidadeEventosEsperados,
+                        Long.MAX_VALUE,
+                        TimeUnit.NANOSECONDS
+                );
+
+                if (concluido && !encerrada) {
+                    encerrar();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }, "Monitor-Fim-Experimento");
+
+        monitor.setDaemon(true);
+        monitor.start();
     }
 
     /**
@@ -92,46 +148,72 @@ public final class CentralMonitoramento implements AutoCloseable {
             long tempoLimite,
             TimeUnit unidade
     ) throws InterruptedException {
+
         if (quantidadeEsperada < 0 || tempoLimite < 0) {
-            throw new IllegalArgumentException("quantidades e tempos nao podem ser negativos");
+            throw new IllegalArgumentException(
+                    "quantidades e tempos nao podem ser negativos"
+            );
         }
-        Objects.requireNonNull(unidade, "unidade nao pode ser nula");
+
+        Objects.requireNonNull(
+                unidade,
+                "unidade nao pode ser nula"
+        );
 
         long limite = System.nanoTime() + unidade.toNanos(tempoLimite);
 
         while (totalProcessadoPelaCentral.get() < quantidadeEsperada) {
             long restante = limite - System.nanoTime();
+
             if (restante <= 0) {
                 return false;
             }
 
-            TimeUnit.NANOSECONDS.sleep(Math.min(restante, TimeUnit.MILLISECONDS.toNanos(10)));
+            TimeUnit.NANOSECONDS.sleep(
+                    Math.min(
+                            restante,
+                            TimeUnit.MILLISECONDS.toNanos(10)
+                    )
+            );
         }
 
         return true;
     }
 
-    /** Interrompe consumidores bloqueados e espera o termino de todos eles. */
+    /**
+     * Interrompe os consumidores e espera o termino de todos eles.
+     */
     public void encerrar() throws InterruptedException {
         List<Thread> threadsParaEncerrar;
 
         synchronized (this) {
-            if (!iniciada || encerrada) {
+            if (!iniciada) {
                 return;
             }
 
-            encerrada = true;
-            processadores.forEach(ProcessadorEventos::solicitarEncerramento);
+            if (!encerrada) {
+                encerrada = true;
+
+                processadores.forEach(
+                        ProcessadorEventos::solicitarEncerramento
+                );
+
+                for (Thread thread : threads) {
+                    thread.interrupt();
+                }
+            }
+
             threadsParaEncerrar = List.copyOf(threads);
-            threadsParaEncerrar.forEach(Thread::interrupt);
         }
 
         boolean threadAtualInterrompida = false;
+
         for (Thread thread : threadsParaEncerrar) {
             try {
                 thread.join();
             } catch (InterruptedException e) {
                 threadAtualInterrompida = true;
+
                 threadsParaEncerrar.forEach(Thread::interrupt);
                 break;
             }
@@ -139,7 +221,9 @@ public final class CentralMonitoramento implements AutoCloseable {
 
         if (threadAtualInterrompida) {
             Thread.currentThread().interrupt();
-            throw new InterruptedException("interrompido ao encerrar a Central");
+            throw new InterruptedException(
+                    "interrompido ao encerrar a Central"
+            );
         }
     }
 
@@ -153,7 +237,9 @@ public final class CentralMonitoramento implements AutoCloseable {
     }
 
     public synchronized int getQuantidadeThreadsAtivas() {
-        return (int) threads.stream().filter(Thread::isAlive).count();
+        return (int) threads.stream()
+                .filter(Thread::isAlive)
+                .count();
     }
 
     public int getEventosPendentes() {
@@ -173,19 +259,21 @@ public final class CentralMonitoramento implements AutoCloseable {
     }
 
     /**
-     * Entrega somente resultados ainda não lidos pelo dashboard. A fila principal
-     * de resultados permanece intacta para relatórios e testes.
+     * Entrega somente os resultados ainda nao lidos pelo dashboard.
      */
     public List<ResultadoProcessamento> drenarResultadosRecentes() {
         List<ResultadoProcessamento> novos = new ArrayList<>();
+
         ResultadoProcessamento resultado;
+
         while ((resultado = resultadosRecentes.poll()) != null) {
             novos.add(resultado);
         }
+
         return novos;
     }
 
-    public synchronized boolean isEmExecucao() {
+    public boolean isEmExecucao() {
         return iniciada && !encerrada;
     }
 }
