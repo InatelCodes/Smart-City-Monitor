@@ -23,21 +23,38 @@ import javafx.util.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** Aplicação JavaFX do Smart City Monitor. */
+/**
+ * Aplicacao JavaFX do Smart City Monitor.
+ */
 public final class SmartCityApplication extends Application {
 
-    private final DashboardController controller = new DashboardController();
-    private final ExecutorService tarefas = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "Controle-do-Experimento");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final DashboardController controller =
+            new DashboardController();
 
-    private final MonitoramentoView monitoramento = new MonitoramentoView();
-    private final ResultadosView resultados = new ResultadosView();
-    private final Label status = new Label();
+    private final ExecutorService tarefas =
+            Executors.newSingleThreadExecutor(r -> {
+                Thread thread = new Thread(
+                        r,
+                        "Controle-do-Experimento"
+                );
+                thread.setDaemon(true);
+                return thread;
+            });
+
+    private final MonitoramentoView monitoramento =
+            new MonitoramentoView();
+
+    private final ResultadosView resultados =
+            new ResultadosView();
+
+    private final Label status =
+            new Label();
+
     private Timeline atualizador;
+
     private volatile boolean fechando;
+
+    private volatile boolean finalizacaoAutomaticaEmAndamento;
 
     public static void main(String[] args) {
         launch(args);
@@ -46,33 +63,79 @@ public final class SmartCityApplication extends Application {
     @Override
     public void start(Stage stage) {
         BorderPane raiz = new BorderPane();
+
         raiz.getStyleClass().add("app-root");
         raiz.setTop(criarCabecalho());
 
-        Tab monitoramentoTab = new Tab("Monitoramento", monitoramento);
-        Tab resultadosTab = new Tab("Resultados", resultados);
+        Tab monitoramentoTab =
+                new Tab("Monitoramento", monitoramento);
+
+        Tab resultadosTab =
+                new Tab("Resultados", resultados);
+
         monitoramentoTab.setClosable(false);
         resultadosTab.setClosable(false);
-        TabPane abas = new TabPane(monitoramentoTab, resultadosTab);
-        abas.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+
+        TabPane abas =
+                new TabPane(
+                        monitoramentoTab,
+                        resultadosTab
+                );
+
+        abas.setTabClosingPolicy(
+                TabPane.TabClosingPolicy.UNAVAILABLE
+        );
+
         raiz.setCenter(abas);
 
-        monitoramento.getBotaoIniciar().setOnAction(evento -> iniciarExperimento());
-        monitoramento.getBotaoParar().setOnAction(evento -> pararExperimento());
-        monitoramento.getBotaoResetar().setOnAction(evento -> resetarExperimento());
+        monitoramento.getBotaoIniciar()
+                .setOnAction(evento -> iniciarExperimento());
 
-        atualizador = new Timeline(new KeyFrame(Duration.millis(500), evento -> atualizarPainel()));
-        atualizador.setCycleCount(Timeline.INDEFINITE);
+        monitoramento.getBotaoParar()
+                .setOnAction(evento -> pararExperimento());
+
+        monitoramento.getBotaoResetar()
+                .setOnAction(evento -> resetarExperimento());
+
+        atualizador = new Timeline(
+                new KeyFrame(
+                        Duration.millis(500),
+                        evento -> atualizarPainel()
+                )
+        );
+
+        atualizador.setCycleCount(
+                Timeline.INDEFINITE
+        );
+
         atualizador.play();
-        aplicarEstado(DashboardController.Estado.PARADO);
 
-        Scene cena = new Scene(raiz, 1280, 860);
+        aplicarEstado(
+                DashboardController.Estado.PARADO
+        );
+
+        Scene cena =
+                new Scene(
+                        raiz,
+                        1280,
+                        860
+                );
+
         cena.getStylesheets().add(
-                SmartCityApplication.class.getResource("/br/smartcity/monitor/ui/dashboard.css")
-                        .toExternalForm());
-        stage.setTitle("Smart City Monitor");
+                SmartCityApplication.class
+                        .getResource(
+                                "/br/smartcity/monitor/ui/dashboard.css"
+                        )
+                        .toExternalForm()
+        );
+
+        stage.setTitle(
+                "Smart City Monitor"
+        );
+
         stage.setMinWidth(980);
         stage.setMinHeight(700);
+
         stage.setScene(cena);
         stage.show();
     }
@@ -80,22 +143,72 @@ public final class SmartCityApplication extends Application {
     private HBox criarCabecalho() {
         Label marca = new Label("SC");
         marca.getStyleClass().add("brand-mark");
-        Label titulo = new Label("SMART CITY MONITOR");
+
+        Label titulo =
+                new Label("SMART CITY MONITOR");
+
         titulo.getStyleClass().add("brand-title");
-        Label subtitulo = new Label("CENTRAL DE OPERAÇÕES");
+
+        Label subtitulo =
+                new Label("CENTRAL DE OPERAÇÕES");
+
         subtitulo.getStyleClass().add("brand-subtitle");
-        VBox textos = new VBox(1, titulo, subtitulo);
 
-        Region espaco = new Region();
-        HBox.setHgrow(espaco, Priority.ALWAYS);
-        monitoramento.getThreadsAtivas().getStyleClass().add("active-threads");
-        HBox estado = new HBox(10, monitoramento.getThreadsAtivas(), status);
-        estado.setAlignment(Pos.CENTER_RIGHT);
+        VBox textos =
+                new VBox(
+                        1,
+                        titulo,
+                        subtitulo
+                );
 
-        HBox cabecalho = new HBox(12, marca, textos, espaco, estado);
-        cabecalho.setAlignment(Pos.CENTER_LEFT);
-        cabecalho.setPadding(new Insets(14, 24, 14, 24));
-        cabecalho.getStyleClass().add("app-header");
+        Region espaco =
+                new Region();
+
+        HBox.setHgrow(
+                espaco,
+                Priority.ALWAYS
+        );
+
+        monitoramento.getThreadsAtivas()
+                .getStyleClass()
+                .add("active-threads");
+
+        HBox estado =
+                new HBox(
+                        10,
+                        monitoramento.getThreadsAtivas(),
+                        status
+                );
+
+        estado.setAlignment(
+                Pos.CENTER_RIGHT
+        );
+
+        HBox cabecalho =
+                new HBox(
+                        12,
+                        marca,
+                        textos,
+                        espaco,
+                        estado
+                );
+
+        cabecalho.setAlignment(
+                Pos.CENTER_LEFT
+        );
+
+        cabecalho.setPadding(
+                new Insets(
+                        14,
+                        24,
+                        14,
+                        24
+                )
+        );
+
+        cabecalho.getStyleClass()
+                .add("app-header");
+
         return cabecalho;
     }
 
@@ -109,9 +222,16 @@ public final class SmartCityApplication extends Application {
 
             monitoramento.limparDados();
 
-            controller.iniciar(configuracao);
+            finalizacaoAutomaticaEmAndamento = false;
 
-            aplicarEstado(DashboardController.Estado.EXECUTANDO);
+            controller.iniciar(
+                    configuracao
+            );
+
+            aplicarEstado(
+                    DashboardController.Estado.EXECUTANDO
+            );
+
             atualizarPainel();
 
         } catch (RuntimeException e) {
@@ -123,71 +243,222 @@ public final class SmartCityApplication extends Application {
     }
 
     private void pararExperimento() {
+        if (finalizacaoAutomaticaEmAndamento) {
+            return;
+        }
+
         monitoramento.setFinalizando();
-        definirStatus("FINALIZANDO", "status-finalizando");
-        tarefas.submit(() -> {
-            try {
-                ExperimentoResultado resultado = controller.parar();
+
+        definirStatus(
+                "FINALIZANDO",
+                "status-finalizando"
+        );
+
+        tarefas.submit(() -> finalizarExperimento());
+    }
+
+    /**
+     * Finaliza o experimento e envia o resultado para a aba Resultados.
+     */
+    private void finalizarExperimento() {
+        try {
+            ExperimentoResultado resultado =
+                    controller.parar();
+
+            Platform.runLater(() -> {
+                atualizarPainel();
+
+                resultados.adicionarResultado(
+                        resultado
+                );
+
+                aplicarEstado(
+                        DashboardController.Estado.FINALIZADO
+                );
+
+                finalizacaoAutomaticaEmAndamento = false;
+            });
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+
+            if (!fechando) {
                 Platform.runLater(() -> {
-                    atualizarPainel();
-                    resultados.adicionarResultado(resultado);
-                    aplicarEstado(DashboardController.Estado.FINALIZADO);
+                    finalizacaoAutomaticaEmAndamento = false;
+
+                    mostrarErro(
+                            "Parada interrompida",
+                            "Não foi possível encerrar todas as threads."
+                    );
                 });
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                if (!fechando) {
-                    Platform.runLater(() -> mostrarErro(
-                            "Parada interrompida", "Não foi possível encerrar todas as threads."));
-                }
             }
-        });
+        }
     }
 
     private void resetarExperimento() {
         try {
             controller.resetar();
+
             monitoramento.limparDados();
-            aplicarEstado(DashboardController.Estado.PARADO);
+
+            finalizacaoAutomaticaEmAndamento = false;
+
+            aplicarEstado(
+                    DashboardController.Estado.PARADO
+            );
+
         } catch (RuntimeException e) {
-            mostrarErro("Não foi possível resetar", e.getMessage());
+            mostrarErro(
+                    "Não foi possível resetar",
+                    e.getMessage()
+            );
         }
     }
 
     private void atualizarPainel() {
-        DashboardSnapshot snapshot = controller.obterSnapshot();
-        boolean executando = controller.getEstado() == DashboardController.Estado.EXECUTANDO;
-        monitoramento.atualizar(snapshot, executando);
-        controller.drenarResultadosRecentes().forEach(monitoramento::adicionarEvento);
+        DashboardSnapshot snapshot =
+                controller.obterSnapshot();
+
+        boolean executando =
+                controller.getEstado()
+                        == DashboardController.Estado.EXECUTANDO;
+
+        monitoramento.atualizar(
+                snapshot,
+                executando
+        );
+
+        controller.drenarResultadosRecentes()
+                .forEach(
+                        monitoramento::adicionarEvento
+                );
+
+        verificarFimAutomatico(snapshot);
     }
 
-    private void aplicarEstado(DashboardController.Estado estado) {
-        monitoramento.setExecutando(estado == DashboardController.Estado.EXECUTANDO);
+    /**
+     * Verifica se todos os eventos da lista fixa foram processados.
+     *
+     * Quando isso acontece, solicita a finalização do experimento
+     * e salva o resultado automaticamente.
+     */
+    private void verificarFimAutomatico(
+            DashboardSnapshot snapshot
+    ) {
+        if (fechando) {
+            return;
+        }
+
+        if (controller.getEstado()
+                != DashboardController.Estado.EXECUTANDO) {
+            return;
+        }
+
+        if (finalizacaoAutomaticaEmAndamento) {
+            return;
+        }
+
+        boolean todosProcessados =
+                snapshot.eventosGerados() > 0
+                        && snapshot.eventosProcessados()
+                        >= snapshot.eventosGerados()
+                        && snapshot.eventosPendentes() == 0;
+
+        if (!todosProcessados) {
+            return;
+        }
+
+        finalizacaoAutomaticaEmAndamento = true;
+
+        monitoramento.setFinalizando();
+
+        definirStatus(
+                "FINALIZANDO",
+                "status-finalizando"
+        );
+
+        tarefas.submit(
+                this::finalizarExperimento
+        );
+    }
+
+    private void aplicarEstado(
+            DashboardController.Estado estado
+    ) {
+        monitoramento.setExecutando(
+                estado
+                        == DashboardController.Estado.EXECUTANDO
+        );
+
         switch (estado) {
-            case PARADO -> definirStatus("PARADO", "status-parado");
-            case EXECUTANDO -> definirStatus("EXECUTANDO", "status-executando");
-            case FINALIZADO -> definirStatus("FINALIZADO", "status-finalizado");
+            case PARADO ->
+                    definirStatus(
+                            "PARADO",
+                            "status-parado"
+                    );
+
+            case EXECUTANDO ->
+                    definirStatus(
+                            "EXECUTANDO",
+                            "status-executando"
+                    );
+
+            case FINALIZADO ->
+                    definirStatus(
+                            "FINALIZADO",
+                            "status-finalizado"
+                    );
         }
     }
 
-    private void definirStatus(String texto, String classe) {
-        status.setText("●  " + texto);
-        status.getStyleClass().setAll("status-badge", classe);
+    private void definirStatus(
+            String texto,
+            String classe
+    ) {
+        status.setText(
+                "●  " + texto
+        );
+
+        status.getStyleClass().setAll(
+                "status-badge",
+                classe
+        );
     }
 
-    private void mostrarErro(String titulo, String mensagem) {
-        Alert alerta = new Alert(Alert.AlertType.ERROR);
-        alerta.setTitle("Smart City Monitor");
-        alerta.setHeaderText(titulo);
-        alerta.setContentText(mensagem == null ? "Erro inesperado." : mensagem);
+    private void mostrarErro(
+            String titulo,
+            String mensagem
+    ) {
+        Alert alerta =
+                new Alert(
+                        Alert.AlertType.ERROR
+                );
+
+        alerta.setTitle(
+                "Smart City Monitor"
+        );
+
+        alerta.setHeaderText(
+                titulo
+        );
+
+        alerta.setContentText(
+                mensagem == null
+                        ? "Erro inesperado."
+                        : mensagem
+        );
+
         alerta.showAndWait();
     }
 
     @Override
     public void stop() {
         fechando = true;
+
         if (atualizador != null) {
             atualizador.stop();
         }
+
         try {
             controller.parar();
         } catch (InterruptedException e) {
