@@ -24,7 +24,7 @@ Central de Monitoramento
      Dashboard
 ````
 
-Os eventos são inseridos na fila antes do início do processamento. A Central utiliza de 1 a 4 Threads para consumir e processar os eventos.
+Os 400 eventos são inseridos na fila antes do início do processamento. A Central utiliza de 1 a 16 Threads para consumir e processar os eventos.
 
 Não existem Threads de sensores gerando eventos durante o experimento.
 
@@ -45,7 +45,7 @@ O sistema apresenta:
 
 O dashboard permite:
 
-* Selecionar a quantidade de Threads (1 a 4)
+* Selecionar a quantidade de Threads (1 a 16)
 * Definir o tempo de processamento de cada evento
 * Iniciar e interromper o experimento
 * Acompanhar as métricas em tempo real

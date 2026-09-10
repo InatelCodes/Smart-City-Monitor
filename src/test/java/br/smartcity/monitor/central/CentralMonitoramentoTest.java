@@ -17,6 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -24,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CentralMonitoramentoTest {
 
     @ParameterizedTest(name = "processa sem perdas ou duplicacoes com {0} thread(s)")
-    @ValueSource(ints = {1, 2, 3, 4})
+    @ValueSource(ints = {1, 2, 4, 8, 16})
     void processaTodosOsEventosComQuantidadeConfiguradaDeThreads(int quantidadeThreads)
             throws InterruptedException {
         int totalEventos = 60;
@@ -85,6 +86,45 @@ class CentralMonitoramentoTest {
     }
 
     @Test
+    void congelaDuracaoAssimQueTodosOsEventosSaoProcessados()
+            throws InterruptedException {
+        int totalEventos = 16;
+        BlockingQueue<Evento> fila = new LinkedBlockingQueue<>();
+        Metricas metricas = new Metricas();
+
+        for (int i = 0; i < totalEventos; i++) {
+            fila.add(new Evento(TipoEvento.ENERGIA, "Evento de teste " + i));
+            metricas.registrarEventoGerado();
+        }
+
+        CentralMonitoramento central = new CentralMonitoramento(
+                fila,
+                metricas,
+                4,
+                5
+        );
+
+        central.iniciar();
+        assertTrue(central.aguardarEventosProcessados(
+                totalEventos,
+                2,
+                TimeUnit.SECONDS
+        ));
+
+        long limite = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (central.isEmExecucao() && System.nanoTime() < limite) {
+            Thread.onSpinWait();
+        }
+
+        assertFalse(central.isEmExecucao());
+
+        double duracaoFinal = metricas.getTempoDecorridoSegundos();
+        Thread.sleep(100);
+
+        assertEquals(duracaoFinal, metricas.getTempoDecorridoSegundos());
+    }
+
+    @Test
     void finalizaEventoJaRetiradoDaFilaAntesDeEncerrar() throws InterruptedException {
         BlockingQueue<Evento> fila = new LinkedBlockingQueue<>();
         Metricas metricas = new Metricas();
@@ -108,17 +148,20 @@ class CentralMonitoramentoTest {
     }
 
     @Test
-    void aceitaSomenteDeUmaAQuatroThreads() {
+    void aceitaSomenteDeUmaADezesseisThreads() {
         BlockingQueue<Evento> fila = new LinkedBlockingQueue<>();
         Metricas metricas = new Metricas();
 
+        assertDoesNotThrow(
+                () -> new CentralMonitoramento(fila, metricas, 16, 100)
+        );
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new CentralMonitoramento(fila, metricas, 0, 100)
         );
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new CentralMonitoramento(fila, metricas, 5, 100)
+                () -> new CentralMonitoramento(fila, metricas, 17, 100)
         );
     }
 

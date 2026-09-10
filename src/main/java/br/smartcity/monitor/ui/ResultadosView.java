@@ -91,7 +91,7 @@ public final class ResultadosView extends ScrollPane {
     }
 
     private LineChart<Number, Number> criarGraficoLatencia() {
-        NumberAxis eixoX = new NumberAxis(1, 4, 1);
+        NumberAxis eixoX = new NumberAxis(1, 16, 1);
         eixoX.setLabel("Threads consumidoras");
         NumberAxis eixoY = new NumberAxis();
         eixoY.setLabel("Tempo médio (ms)");

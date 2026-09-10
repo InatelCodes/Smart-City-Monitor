@@ -54,7 +54,7 @@ public final class MonitoramentoView extends BorderPane {
             new Spinner<>(0, 5_000, 120, 10);
 
     private final Slider sliderThreads =
-            new Slider(1, 4, 2);
+            new Slider(1, 16, 2);
 
     private final Label valorThreads =
             new Label("2 Threads");
