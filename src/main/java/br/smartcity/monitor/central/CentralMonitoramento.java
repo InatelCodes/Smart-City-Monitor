@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class CentralMonitoramento implements AutoCloseable {
 
     public static final int MIN_THREADS = 1;
-    public static final int MAX_THREADS = 4;
+    public static final int MAX_THREADS = 16;
 
     private final BlockingQueue<Evento> fila;
     private final Metricas metricas;
@@ -49,7 +49,7 @@ public final class CentralMonitoramento implements AutoCloseable {
     ) {
         if (quantidadeThreads < MIN_THREADS || quantidadeThreads > MAX_THREADS) {
             throw new IllegalArgumentException(
-                    "quantidadeThreads deve estar entre 1 e 4"
+                    "quantidadeThreads deve estar entre 1 e 16"
             );
         }
 
@@ -128,6 +128,10 @@ public final class CentralMonitoramento implements AutoCloseable {
                 );
 
                 if (concluido && !encerrada) {
+                    // Congela duração e vazão no instante real em que o último
+                    // evento termina. A atualização periódica do JavaFX não
+                    // deve acrescentar atraso às métricas do experimento.
+                    metricas.finalizarColeta();
                     encerrar();
                 }
             } catch (InterruptedException e) {

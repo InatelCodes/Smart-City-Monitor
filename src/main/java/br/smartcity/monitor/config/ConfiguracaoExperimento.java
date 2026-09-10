@@ -6,9 +6,9 @@ public record ConfiguracaoExperimento(
         int tempoProcessamentoMs
 ) {
     public ConfiguracaoExperimento {
-        if (quantidadeThreads < 1 || quantidadeThreads > 4) {
+        if (quantidadeThreads < 1 || quantidadeThreads > 16) {
             throw new IllegalArgumentException(
-                    "A quantidade de threads deve estar entre 1 e 4"
+                    "A quantidade de threads deve estar entre 1 e 16"
             );
         }
 
