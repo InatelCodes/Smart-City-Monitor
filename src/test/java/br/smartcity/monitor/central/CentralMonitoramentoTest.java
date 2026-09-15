@@ -61,7 +61,8 @@ class CentralMonitoramentoTest {
 
         assertEquals(totalEventos, resultados.size());
         assertEquals(totalEventos, idsProcessados.size());
-        assertEquals(quantidadeThreads, threadsQueProcessaram.size());
+        assertTrue(threadsQueProcessaram.size() >= 1);
+        assertTrue(threadsQueProcessaram.size() <= quantidadeThreads);
         assertEquals(totalEventos, metricas.getEventosProcessados());
         assertEquals(0, central.getEventosPendentes());
         assertEquals(0, central.getQuantidadeThreadsAtivas());

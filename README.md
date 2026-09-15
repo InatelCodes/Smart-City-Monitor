@@ -1,75 +1,78 @@
 # Smart City Monitor
 
-Sistema de monitoramento de uma cidade inteligente desenvolvido em Java, com foco no uso de Threads para processamento concorrente de eventos.
+Sistema de monitoramento de uma cidade inteligente desenvolvido em Java, com foco no processamento concorrente de eventos usando Threads.
 
 ## Objetivo
 
-Avaliar como o aumento do número de Threads da Central de Monitoramento influencia o processamento de uma mesma carga de eventos.
+Avaliar como diferentes quantidades de Threads consumidoras influenciam o processamento de uma mesma carga de eventos.
 
-O experimento utiliza uma lista fixa de eventos e varia somente a quantidade de Threads consumidoras.
+O experimento mantém a lista de eventos fixa e altera principalmente a quantidade de Threads da Central.
 
 ## Funcionamento
 
 ```text
 Lista fixa de eventos
         ↓
-     BlockingQueue
+   BlockingQueue
         ↓
 Central de Monitoramento
         ↓
   Threads consumidoras
         ↓
+Processamento concorrente
+        ↓
      Métricas
         ↓
      Dashboard
-````
+```
 
-Os 400 eventos são inseridos na fila antes do início do processamento. A Central utiliza de 1 a 16 Threads para consumir e processar os eventos.
+Os eventos são inseridos na fila antes do início do experimento. Não existem Threads responsáveis pela geração durante a execução.
 
-Não existem Threads de sensores gerando eventos durante o experimento.
+## Experimento
 
-## Métricas
+A aplicação permite utilizar de **1 a 16 Threads** e configurar o tempo de processamento de cada evento.
 
-O sistema apresenta:
+Para comparar as configurações, recomenda-se manter a mesma carga e o mesmo tempo de processamento, alterando somente o número de Threads.
 
-* Eventos gerados
-* Eventos processados
-* Eventos pendentes
-* Vazão (eventos por segundo)
-* Tempo médio de resposta
-* Tempo total do experimento
-* Quantidade de eventos processados por tipo
-* Registro dos eventos processados e da Thread responsável
+A carga padrão é de **400 eventos fixos**, distribuídos entre Trânsito, Clima, Energia e Qualidade do ar.
+
+O processamento utiliza uma carga real de CPU durante o tempo configurado. A partir de 8 Threads, o experimento também modela um custo crescente de coordenação da Central. Esse custo representa a sobrecarga de administrar muitas Threads concorrentes sobre recursos compartilhados e permite identificar experimentalmente um ponto de melhor custo-benefício.
 
 ## Dashboard
 
-O dashboard permite:
+A aba **Monitoramento** apresenta:
 
-* Selecionar a quantidade de Threads (1 a 16)
-* Definir o tempo de processamento de cada evento
-* Iniciar e interromper o experimento
-* Acompanhar as métricas em tempo real
-* Visualizar os eventos processados
-* Comparar os resultados dos experimentos
+- Eventos gerados, processados e pendentes;
+- Vazão em eventos por segundo;
+- Tempo médio de resposta;
+- Tempo total;
+- Gráfico de eventos pendentes ao longo da execução;
+- Tabela dos eventos processados;
+- Representação 2D da cidade.
+
+Na representação 2D, cada região representa um tipo de evento. Quando um evento é concluído, ele é animado visualmente da região correspondente até a Central. A visualização representa o fluxo de processamento e não cria Threads para os sensores.
 
 ## Resultados
 
-A aba de resultados permite comparar os experimentos realizados, observando principalmente:
+A aba **Resultados** compara:
 
-* Threads × processamento
-* Threads × tempo médio de resposta
-* Comportamento da fila durante o processamento
+- Threads × vazão;
+- Threads × tempo médio de resposta;
+- Threads × tempo total.
 
-Como a carga de eventos permanece a mesma, é possível analisar o efeito do aumento do paralelismo sobre o processamento.
+O gráfico de tempo total permite observar o comportamento do sistema conforme o paralelismo aumenta. O dashboard também identifica a configuração que apresentou o menor tempo entre os experimentos registrados como **ponto ótimo atual**.
+
+O objetivo é observar experimentalmente o ponto em que aumentar o número de Threads deixa de trazer ganhos proporcionais e pode passar a aumentar o custo de processamento.
 
 ## Tecnologias
 
-* Java
-* JavaFX
-* Maven
-* JUnit
-* `BlockingQueue`
-* Threads / concorrência
+- Java 17+
+- JavaFX
+- Maven
+- JUnit 5
+- `BlockingQueue`
+- `AtomicInteger` / `AtomicLong`
+- Threads / concorrência
 
 ## Como executar
 
@@ -81,11 +84,11 @@ mvn clean javafx:run
 
 ## Testes
 
-Para executar os testes automatizados:
-
 ```bash
 mvn clean test
 ```
+
+Os testes verificam processamento sem perdas ou duplicações, encerramento das Threads, quantidade configurada de Threads e execução do fluxo do dashboard.
 
 ## Estrutura principal
 
@@ -105,5 +108,3 @@ src/
 └── test/
     └── java/br/smartcity/monitor/
 ```
-
-#### Projeto desenvolvido por [Bruna Magalhães](https://github.com/BrunaDev) e [Vinicius Simoni](https://github.com/vinigs22) - Matéria de C12 - Sistemas Operacionais
