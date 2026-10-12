@@ -1,6 +1,10 @@
 # Smart City Monitor
 
-Sistema de monitoramento de uma cidade inteligente desenvolvido em Java, com foco no processamento concorrente de eventos usando Threads.
+Nova funcionalidade em desenvolvimento: consulte a
+> [spec do simulador de escalonamento de CPU](docs/SPEC-ESCALONAMENTO-CPU.md),
+> com comparação entre FCFS e Round Robin.
+
+Sistema de monitoramento de uma cidade inteligente desenvolvido em Java, com foco no uso de Threads para processamento concorrente de eventos.
 
 ## Objetivo
 
