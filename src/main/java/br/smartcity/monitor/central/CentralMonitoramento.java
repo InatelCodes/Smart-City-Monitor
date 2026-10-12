@@ -90,6 +90,7 @@ public final class CentralMonitoramento implements AutoCloseable {
                     fila,
                     metricas,
                     tempoProcessamentoMs,
+                    quantidadeThreads,
                     resultado -> {
                         resultados.add(resultado);
                         resultadosRecentes.add(resultado);

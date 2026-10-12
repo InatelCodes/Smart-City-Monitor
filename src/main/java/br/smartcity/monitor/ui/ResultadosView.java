@@ -35,6 +35,8 @@ public final class ResultadosView extends ScrollPane {
     private final ObservableList<ExperimentoResultado> resultados = FXCollections.observableArrayList();
     private final BarChart<String, Number> graficoProcessamento;
     private final LineChart<Number, Number> graficoLatencia;
+    private final LineChart<Number, Number> graficoDuracao;
+    private final Label pontoOtimo = new Label("Ponto ótimo: aguardando experimentos");
     private final TableView<ExperimentoResultado> tabela = new TableView<>(resultados);
 
     public ResultadosView() {
@@ -45,21 +47,35 @@ public final class ResultadosView extends ScrollPane {
         Label titulo = new Label("Resultados dos experimentos");
         titulo.getStyleClass().add("page-title");
         Label subtitulo = new Label(
-                "Compare capacidade, latência e estabilidade da fila entre configurações.");
+                "Compare vazão, latência e custo de adicionar Threads à Central.");
         subtitulo.getStyleClass().add("page-subtitle");
 
         graficoProcessamento = criarGraficoProcessamento();
         graficoLatencia = criarGraficoLatencia();
+        graficoDuracao = criarGraficoDuracao();
+
+        pontoOtimo.getStyleClass().add("optimal-point");
 
         GridPane comparacoes = new GridPane();
         comparacoes.setHgap(16);
         comparacoes.setVgap(16);
-        comparacoes.add(criarCardGrafico(graficoProcessamento), 0, 0);
-        comparacoes.add(criarCardGrafico(graficoLatencia), 1, 0);
-        GridPane.setHgrow(comparacoes.getChildren().get(0), Priority.ALWAYS);
-        GridPane.setHgrow(comparacoes.getChildren().get(1), Priority.ALWAYS);
+
+        Node cardProcessamento = criarCardGrafico(graficoProcessamento);
+        Node cardLatencia = criarCardGrafico(graficoLatencia);
+        Node cardDuracao = criarCardGrafico(graficoDuracao);
+
+        comparacoes.add(cardProcessamento, 0, 0);
+        comparacoes.add(cardLatencia, 1, 0);
+        comparacoes.add(cardDuracao, 0, 1, 2, 1);
+
+        GridPane.setHgrow(cardProcessamento, Priority.ALWAYS);
+        GridPane.setHgrow(cardLatencia, Priority.ALWAYS);
+        GridPane.setHgrow(cardDuracao, Priority.ALWAYS);
+
         comparacoes.getColumnConstraints().addAll(
-                colunaPercentual(50), colunaPercentual(50));
+                colunaPercentual(50),
+                colunaPercentual(50)
+        );
 
         configurarTabela();
         Label tituloHistorico = new Label("Histórico completo");
@@ -71,7 +87,13 @@ public final class ResultadosView extends ScrollPane {
         cardTabela.setPadding(new Insets(18));
         tabela.setPrefHeight(300);
 
-        VBox conteudo = new VBox(18, new VBox(4, titulo, subtitulo), comparacoes, cardTabela);
+        VBox conteudo = new VBox(
+                18,
+                new VBox(4, titulo, subtitulo),
+                pontoOtimo,
+                comparacoes,
+                cardTabela
+        );
         conteudo.setPadding(new Insets(24));
         setContent(conteudo);
     }
@@ -100,6 +122,25 @@ public final class ResultadosView extends ScrollPane {
         grafico.setLegendVisible(false);
         grafico.setAnimated(false);
         grafico.setPrefHeight(330);
+        return grafico;
+    }
+
+    private LineChart<Number, Number> criarGraficoDuracao() {
+        NumberAxis eixoX = new NumberAxis(1, 16, 1);
+        eixoX.setLabel("Threads consumidoras");
+
+        NumberAxis eixoY = new NumberAxis();
+        eixoY.setLabel("Tempo total (s)");
+
+        LineChart<Number, Number> grafico =
+                new LineChart<>(eixoX, eixoY);
+
+        grafico.setTitle("Threads × tempo total");
+        grafico.setLegendVisible(true);
+        grafico.setAnimated(false);
+        grafico.setCreateSymbols(true);
+        grafico.setPrefHeight(330);
+
         return grafico;
     }
 
@@ -162,12 +203,50 @@ public final class ResultadosView extends ScrollPane {
         graficoProcessamento.getData().setAll(processamento);
 
         XYChart.Series<Number, Number> latencia = new XYChart.Series<>();
+        latencia.setName("Latência");
         maisRecentePorThreads.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> latencia.getData().add(new XYChart.Data<>(
                         entry.getKey(), entry.getValue().tempoMedioRespostaMs())));
         graficoLatencia.getData().setAll(latencia);
 
+        XYChart.Series<Number, Number> duracao = new XYChart.Series<>();
+        duracao.setName("Duração");
+        maisRecentePorThreads.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> duracao.getData().add(new XYChart.Data<>(
+                        entry.getKey(), entry.getValue().duracaoSegundos())));
+
+        ExperimentoResultado melhor =
+                maisRecentePorThreads.values().stream()
+                        .min(Comparator.comparingDouble(ExperimentoResultado::duracaoSegundos))
+                        .orElse(null);
+
+        if (melhor == null) {
+            graficoDuracao.getData().clear();
+            pontoOtimo.setText("Ponto ótimo: aguardando experimentos");
+            return;
+        }
+
+        XYChart.Series<Number, Number> melhorPonto = new XYChart.Series<>();
+        melhorPonto.setName("Ponto ótimo");
+        melhorPonto.getData().add(
+                new XYChart.Data<>(
+                        melhor.configuracao().quantidadeThreads(),
+                        melhor.duracaoSegundos()
+                )
+        );
+
+        graficoDuracao.getData().setAll(duracao, melhorPonto);
+
+        pontoOtimo.setText(
+                String.format(
+                        PT_BR,
+                        "Ponto ótimo atual: %d Threads • %.1f s",
+                        melhor.configuracao().quantidadeThreads(),
+                        melhor.duracaoSegundos()
+                )
+        );
     }
 
     private static javafx.scene.layout.ColumnConstraints colunaPercentual(double percentual) {

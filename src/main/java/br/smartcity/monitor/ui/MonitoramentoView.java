@@ -7,6 +7,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
@@ -15,14 +16,14 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.control.Spinner;
-import javafx.scene.control.SplitPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.ColumnConstraints;
-import javafx.scene.layout.GridPane;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.text.NumberFormat;
@@ -30,1075 +31,369 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.function.Function;
 
-/**
- * Conteúdo da aba de acompanhamento em tempo real.
- */
+/** Conteúdo da aba de acompanhamento em tempo real. */
 public final class MonitoramentoView extends BorderPane {
 
-    private static final Locale PT_BR =
-            Locale.forLanguageTag("pt-BR");
-
-    private static final NumberFormat INTEIRO =
-            NumberFormat.getIntegerInstance(PT_BR);
-
-    private static final DateTimeFormatter HORARIO =
-            DateTimeFormatter.ofPattern("HH:mm:ss");
-
+    private static final Locale PT_BR = Locale.forLanguageTag("pt-BR");
+    private static final NumberFormat INTEIRO = NumberFormat.getIntegerInstance(PT_BR);
+    private static final DateTimeFormatter HORARIO = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final int MAX_EVENTOS_RECENTES = 100;
     private static final int MAX_PONTOS_GRAFICO = 240;
 
-    /*
-     * Configuração do experimento
-     */
-    private final Spinner<Integer> tempoProcessamento =
-            new Spinner<>(0, 5_000, 120, 10);
+    private final Spinner<Integer> tempoProcessamento = new Spinner<>(0, 5_000, 120, 10);
+    private final Slider sliderThreads = new Slider(1, 16, 2);
+    private final Label valorThreads = new Label("2 Threads");
 
-    private final Slider sliderThreads =
-            new Slider(1, 16, 2);
+    private final Button iniciar = new Button("Iniciar experimento");
+    private final Button parar = new Button("Parar");
+    private final Button resetar = new Button("Resetar");
 
-    private final Label valorThreads =
-            new Label("2 Threads");
+    private final Label threadsAtivas = new Label("0 ativas");
 
-    /*
-     * Botões
-     */
-    private final Button iniciar =
-            new Button("Iniciar experimento");
+    private final Label eventosProcessados = valorMetrica("0");
+    private final Label eventosPendentes = valorMetrica("0");
+    private final Label taxaProcessada = valorMetrica("0,0 ev/s");
+    private final Label tempoMedio = valorMetrica("0 ms");
+    private final Label tempoTotal = valorMetrica("0,0 s");
 
-    private final Button parar =
-            new Button("Parar");
+    private final CidadeMonitorView cidadeMonitor = new CidadeMonitorView();
+    private final XYChart.Series<Number, Number> seriePendentes = new XYChart.Series<>();
+    private LineChart<Number, Number> graficoFila;
+    private final Label graficoFilaVazio = new Label("Inicie um experimento para acompanhar a fila.");
 
-    private final Button resetar =
-            new Button("Resetar");
-
-    /*
-     * Informações gerais
-     */
-    private final Label threadsAtivas =
-            new Label("0 ativas");
-
-    /*
-     * Métricas
-     */
-    private final Label eventosGerados =
-            valorMetrica("0");
-
-    private final Label eventosProcessados =
-            valorMetrica("0");
-
-    private final Label eventosPendentes =
-            valorMetrica("0");
-
-    private final Label taxaProcessada =
-            valorMetrica("0,0 ev/s");
-
-    private final Label tempoMedio =
-            valorMetrica("0 ms");
-
-    private final Label tempoTotal =
-            valorMetrica("0,0 s");
-
-    /*
-     * Gráfico
-     */
-    private final XYChart.Series<Number, Number> seriePendentes =
-            new XYChart.Series<>();
-
-    /*
-     * Tabela de eventos
-     */
-    private final TableView<ResultadoProcessamento> tabelaEventos =
-            new TableView<>();
-
-    private final ObservableList<ResultadoProcessamento> eventos =
-            FXCollections.observableArrayList();
+    private final TableView<ResultadoProcessamento> tabelaEventos = new TableView<>();
+    private final ObservableList<ResultadoProcessamento> eventos = FXCollections.observableArrayList();
 
     public MonitoramentoView() {
-
         getStyleClass().add("monitoramento-view");
+        setPadding(new Insets(18, 22, 20, 22));
 
-        setPadding(
-                new Insets(20, 24, 24, 24)
-        );
+        Node configuracao = criarConfiguracao();
+        Node conteudo = criarConteudo();
 
-        Node configuracao =
-                criarConfiguracao();
-
-        Node conteudo =
-                criarConteudo();
+        ScrollPane rolagem = new ScrollPane(conteudo);
+        rolagem.setFitToWidth(true);
+        rolagem.setPannable(true);
+        rolagem.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        rolagem.getStyleClass().add("dashboard-scroll");
 
         setTop(configuracao);
-        setCenter(conteudo);
+        setCenter(rolagem);
+        BorderPane.setMargin(rolagem, new Insets(14, -10, -8, -10));
 
-        BorderPane.setMargin(
-                conteudo,
-                new Insets(18, 0, 0, 0)
-        );
-
-        /*
-         * Estado inicial:
-         * experimento parado.
-         */
         setExecutando(false);
     }
 
-    /**
-     * Cria a área de configuração do experimento.
-     */
     private Node criarConfiguracao() {
-
-        /*
-         * Slider de Threads
-         */
         sliderThreads.setBlockIncrement(1);
         sliderThreads.setMajorTickUnit(1);
         sliderThreads.setMinorTickCount(0);
         sliderThreads.setSnapToTicks(true);
-        sliderThreads.setShowTickMarks(true);
-        sliderThreads.setShowTickLabels(true);
+        sliderThreads.setShowTickMarks(false);
+        sliderThreads.setShowTickLabels(false);
 
-        valorThreads
-                .getStyleClass()
-                .add("thread-value");
+        valorThreads.getStyleClass().add("thread-value");
 
-        sliderThreads.valueProperty().addListener(
-                (obs, antigo, novo) -> {
+        sliderThreads.valueProperty().addListener((obs, antigo, novo) -> {
+            int quantidade = novo.intValue();
+            valorThreads.setText(quantidade == 1 ? "1 Thread" : quantidade + " Threads");
+        });
 
-                    int quantidade =
-                            novo.intValue();
-
-                    valorThreads.setText(
-                            quantidade == 1
-                                    ? "1 Thread"
-                                    : quantidade + " Threads"
-                    );
-                }
-        );
-
-        /*
-         * Tempo de processamento
-         */
         tempoProcessamento.setEditable(true);
+        tempoProcessamento.setPrefWidth(118);
 
-        /*
-         * Bloco de Threads
-         */
-        VBox controleThreads =
-                new VBox(
-                        5,
-                        criarRotuloCampo(
-                                "THREADS DA CENTRAL"
-                        ),
-                        valorThreads,
-                        sliderThreads
-                );
+        Label titulo = new Label("CONFIGURAÇÃO");
+        titulo.getStyleClass().add("eyebrow");
 
-        controleThreads
-                .getStyleClass()
-                .add("config-section");
+        Label carga = new Label("400 eventos fixos");
+        carga.getStyleClass().add("config-badge");
 
-        /*
-         * Bloco de tempo
-         */
-        VBox controleProcessamento =
-                new VBox(
-                        7,
-                        criarRotuloCampo(
-                                "TEMPO DE PROCESSAMENTO"
-                        ),
-                        tempoProcessamento
-                );
+        HBox cabecalho = new HBox(10, titulo, carga);
+        cabecalho.setAlignment(Pos.CENTER_LEFT);
 
-        controleProcessamento
-                .getStyleClass()
-                .add("config-section");
+        Label min = new Label("1");
+        Label max = new Label("16");
+        min.getStyleClass().add("slider-limit");
+        max.getStyleClass().add("slider-limit");
+        HBox limites = new HBox(min, criarEspaco(), max);
 
-        controleThreads.setMaxWidth(
-                Double.MAX_VALUE
+        VBox controleThreads = new VBox(
+                4,
+                criarRotuloCampo("THREADS DA CENTRAL"),
+                valorThreads,
+                sliderThreads,
+                limites
         );
+        controleThreads.getStyleClass().add("config-section");
+        HBox.setHgrow(controleThreads, Priority.ALWAYS);
 
-        controleProcessamento.setMaxWidth(
-                Double.MAX_VALUE
+        Label unidade = new Label("ms");
+        unidade.getStyleClass().add("unit-label");
+        HBox tempo = new HBox(8, tempoProcessamento, unidade);
+        tempo.setAlignment(Pos.CENTER_LEFT);
+
+        VBox controleTempo = new VBox(
+                6,
+                criarRotuloCampo("CARGA BASE POR EVENTO"),
+                tempo,
+                new Label("Mantida constante; custo de coordenação cresce após 8 Threads")
         );
+        controleTempo.getChildren().get(2).getStyleClass().add("config-hint");
 
-        /*
-         * Grid dos controles
-         */
-        GridPane configuracao =
-                new GridPane();
+        VBox controles = new VBox(6, cabecalho, new HBox(26, controleThreads, controleTempo));
+        controles.getStyleClass().addAll("surface", "config-card");
+        VBox.setVgrow(controleThreads, Priority.ALWAYS);
 
-        configuracao.setHgap(32);
-        configuracao.setVgap(10);
+        HBox botoes = new HBox(9, iniciar, parar, resetar);
+        botoes.setAlignment(Pos.CENTER_LEFT);
+        botoes.getStyleClass().add("action-buttons");
+        iniciar.getStyleClass().add("primary-button");
+        parar.getStyleClass().add("danger-button");
+        resetar.getStyleClass().add("secondary-button");
 
-        configuracao
-                .getStyleClass()
-                .addAll(
-                        "surface",
-                        "config-card"
-                );
-
-        configuracao.add(
-                controleThreads,
-                0,
-                0
-        );
-
-        configuracao.add(
-                controleProcessamento,
-                1,
-                0
-        );
-
-        /*
-         * Coluna das Threads
-         */
-        ColumnConstraints coluna1 =
-                new ColumnConstraints();
-
-        coluna1.setPercentWidth(70);
-        coluna1.setHgrow(
-                Priority.ALWAYS
-        );
-
-        /*
-         * Coluna do tempo
-         */
-        ColumnConstraints coluna2 =
-                new ColumnConstraints();
-
-        coluna2.setPercentWidth(30);
-        coluna2.setHgrow(
-                Priority.ALWAYS
-        );
-
-        configuracao
-                .getColumnConstraints()
-                .addAll(
-                        coluna1,
-                        coluna2
-                );
-
-        /*
-         * Botões
-         */
-        HBox botoes =
-                new HBox(
-                        10,
-                        iniciar,
-                        parar,
-                        resetar
-                );
-
-        botoes.setPadding(
-                new Insets(12, 0, 0, 0)
-        );
-
-        botoes
-                .getStyleClass()
-                .add("action-buttons");
-
-        iniciar
-                .getStyleClass()
-                .add("primary-button");
-
-        parar
-                .getStyleClass()
-                .add("danger-button");
-
-        resetar
-                .getStyleClass()
-                .add("secondary-button");
-
-        /*
-         * Junta configurações + botões
-         */
-        VBox resultado =
-                new VBox(
-                        0,
-                        configuracao,
-                        botoes
-                );
-
+        VBox resultado = new VBox(9, controles, botoes);
         return resultado;
     }
 
-    /**
-     * Cria o conteúdo principal do dashboard.
-     */
     private Node criarConteudo() {
-
-        /*
-         * =========================
-         * MÉTRICAS
-         * =========================
-         */
-
-        GridPane metricas =
-                new GridPane();
-
-        metricas.setHgap(12);
-        metricas.setVgap(12);
-
-        /*
-         * Eventos gerados
-         */
-        metricas.add(
-                criarCardMetrica(
-                        "EVENTOS GERADOS",
-                        eventosGerados,
-                        "Carga fixa do experimento",
-                        false
-                ),
-                0,
-                0
+        HBox metricas = new HBox(12,
+                criarCardMetrica("PROCESSADOS", eventosProcessados, "Eventos concluídos"),
+                criarCardMetrica("PENDENTES", eventosPendentes, "Ainda na fila"),
+                criarCardMetrica("VAZÃO", taxaProcessada, "Eventos por segundo"),
+                criarCardMetrica("TEMPO MÉDIO", tempoMedio, "Da criação ao processamento"),
+                criarCardMetrica("TEMPO TOTAL", tempoTotal, "Duração do experimento")
         );
+        metricas.getStyleClass().add("metrics-row");
 
-        /*
-         * Eventos processados
-         */
-        metricas.add(
-                criarCardMetrica(
-                        "EVENTOS PROCESSADOS",
-                        eventosProcessados,
-                        "Concluídos pela central",
-                        false
-                ),
-                1,
-                0
-        );
-
-        /*
-         * Eventos pendentes
-         */
-        metricas.add(
-                criarCardMetrica(
-                        "EVENTOS PENDENTES",
-                        eventosPendentes,
-                        "Aguardando na fila",
-                        true
-                ),
-                2,
-                0
-        );
-
-        /*
-         * Vazão
-         */
-        metricas.add(
-                criarCardMetrica(
-                        "VAZÃO",
-                        taxaProcessada,
-                        "Eventos processados por segundo",
-                        false
-                ),
-                0,
-                1
-        );
-
-        /*
-         * Tempo médio
-         */
-        metricas.add(
-                criarCardMetrica(
-                        "TEMPO MÉDIO",
-                        tempoMedio,
-                        "Criação até processamento",
-                        false
-                ),
-                1,
-                1
-        );
-
-        /*
-         * Tempo total
-         */
-        metricas.add(
-                criarCardMetrica(
-                        "TEMPO TOTAL",
-                        tempoTotal,
-                        "Duração do experimento",
-                        false
-                ),
-                2,
-                1
-        );
-
-        /*
-         * Distribuição das três colunas
-         */
-        for (int i = 0; i < 3; i++) {
-
-            ColumnConstraints coluna =
-                    new ColumnConstraints();
-
-            coluna.setPercentWidth(33.33);
-
-            coluna.setHgrow(
-                    Priority.ALWAYS
-            );
-
-            metricas
-                    .getColumnConstraints()
-                    .add(coluna);
-        }
-
-        /*
-         * =========================
-         * GRÁFICO
-         * =========================
-         */
-
-        NumberAxis eixoX =
-                new NumberAxis();
-
-        eixoX.setLabel(
-                "Tempo de execução (segundos)"
-        );
-
+        NumberAxis eixoX = new NumberAxis();
+        eixoX.setLabel("Tempo (s)");
         eixoX.setForceZeroInRange(true);
 
-        NumberAxis eixoY =
-                new NumberAxis();
-
-        eixoY.setLabel(
-                "Eventos pendentes"
-        );
-
+        NumberAxis eixoY = new NumberAxis();
+        eixoY.setLabel("Eventos na fila");
         eixoY.setForceZeroInRange(true);
 
-        LineChart<Number, Number> grafico =
-                new LineChart<>(
-                        eixoX,
-                        eixoY
-                );
+        graficoFila = new LineChart<>(eixoX, eixoY);
+        graficoFila.setTitle("Eventos pendentes");
+        graficoFila.setLegendVisible(false);
+        graficoFila.setCreateSymbols(false);
+        graficoFila.setAnimated(false);
+        graficoFila.setMinHeight(250);
+        graficoFila.setPrefHeight(270);
+        graficoFila.getData().add(seriePendentes);
+        graficoFila.getStyleClass().add("live-chart");
 
-        grafico.setTitle(
-                "Eventos pendentes × tempo"
+        graficoFilaVazio.getStyleClass().add("chart-empty");
+        graficoFila.setVisible(false);
+        StackPane graficoContainer = new StackPane(graficoFila, graficoFilaVazio);
+        graficoContainer.setMinHeight(250);
+        graficoContainer.setPrefHeight(270);
+
+        VBox cidadeCard = criarPainelVisual(
+                "FLUXO EM TEMPO REAL",
+                "Os eventos percorrem as regiões até a Central.",
+                cidadeMonitor
+        );
+        VBox graficoCard = criarPainelVisual(
+                "FILA",
+                "Eventos que ainda aguardam processamento.",
+                graficoContainer
         );
 
-        grafico.setLegendVisible(false);
-        grafico.setCreateSymbols(false);
-        grafico.setAnimated(false);
-
-        grafico
-                .getData()
-                .add(seriePendentes);
-
-        grafico
-                .getStyleClass()
-                .add("live-chart");
-
-        VBox.setVgrow(
-                grafico,
-                Priority.ALWAYS
-        );
-
-        /*
-         * =========================
-         * TABELA
-         * =========================
-         */
+        HBox visualizacao = new HBox(14, cidadeCard, graficoCard);
+        visualizacao.getStyleClass().add("visualization-row");
+        HBox.setHgrow(cidadeCard, Priority.ALWAYS);
+        HBox.setHgrow(graficoCard, Priority.ALWAYS);
+        cidadeCard.setPrefWidth(520);
+        graficoCard.setPrefWidth(520);
+        cidadeCard.setMinWidth(0);
+        graficoCard.setMinWidth(0);
 
         configurarTabelaEventos();
 
-        Label tituloEventos =
-                new Label(
-                        "Eventos recentes"
-                );
+        Label tituloEventos = new Label("ÚLTIMOS EVENTOS");
+        tituloEventos.getStyleClass().add("eyebrow");
+        Label detalheEventos = new Label("Processamentos concluídos mais recentes");
+        detalheEventos.getStyleClass().add("section-subtitle");
 
-        tituloEventos
-                .getStyleClass()
-                .add("section-title");
-
-        Label detalheEventos =
-                new Label(
-                        "Últimos processamentos concluídos"
-                );
-
-        detalheEventos
-                .getStyleClass()
-                .add("section-subtitle");
-
-        VBox tabelaCabecalho =
-                new VBox(
-                        3,
-                        tituloEventos,
-                        detalheEventos
-                );
-
-        VBox tabelaCard =
-                new VBox(
-                        12,
-                        tabelaCabecalho,
-                        tabelaEventos
-                );
-
-        tabelaCard
-                .getStyleClass()
-                .add("surface");
-
-        tabelaCard.setPadding(
-                new Insets(18)
+        VBox tabelaCard = new VBox(
+                8,
+                new VBox(2, tituloEventos, detalheEventos),
+                tabelaEventos
         );
+        tabelaCard.getStyleClass().addAll("surface", "events-card");
+        VBox.setVgrow(tabelaEventos, Priority.ALWAYS);
+        tabelaEventos.setPrefHeight(190);
+        tabelaEventos.setMinHeight(160);
 
-        VBox.setVgrow(
-                tabelaEventos,
-                Priority.ALWAYS
-        );
-
-        /*
-         * Painel superior
-         */
-        VBox painelSuperior =
-                new VBox(
-                        14,
-                        metricas,
-                        grafico
-                );
-
-        VBox.setVgrow(
-                grafico,
-                Priority.ALWAYS
-        );
-
-        /*
-         * Divisão gráfico/tabela
-         */
-        SplitPane divisao =
-                new SplitPane(
-                        painelSuperior,
-                        tabelaCard
-                );
-
-        divisao.setOrientation(
-                javafx.geometry.Orientation.VERTICAL
-        );
-
-        divisao.setDividerPositions(
-                0.64
-        );
-
-        divisao
-                .getStyleClass()
-                .add("content-split");
-
-        return divisao;
+        VBox conteudo = new VBox(14, metricas, visualizacao, tabelaCard);
+        conteudo.setPadding(new Insets(0, 0, 12, 0));
+        VBox.setVgrow(visualizacao, Priority.ALWAYS);
+        return conteudo;
     }
 
-    /**
-     * Cria um card de métrica.
-     */
-    private Node criarCardMetrica(
-            String titulo,
-            Label valor,
-            String detalhe,
-            boolean destaque
-    ) {
+    private VBox criarPainelVisual(String titulo, String detalhe, Node conteudo) {
+        Label tituloLabel = new Label(titulo);
+        tituloLabel.getStyleClass().add("eyebrow");
+        Label detalheLabel = new Label(detalhe);
+        detalheLabel.getStyleClass().add("section-subtitle");
 
-        Label rotulo =
-                new Label(titulo);
-
-        rotulo
-                .getStyleClass()
-                .add("metric-label");
-
-        Label apoio =
-                new Label(detalhe);
-
-        apoio
-                .getStyleClass()
-                .add("metric-detail");
-
-        VBox card =
-                new VBox(
-                        7,
-                        rotulo,
-                        valor,
-                        apoio
-                );
-
-        card
-                .getStyleClass()
-                .addAll(
-                        "surface",
-                        "metric-card"
-                );
-
-        if (destaque) {
-
-            card
-                    .getStyleClass()
-                    .add(
-                            "metric-card-highlight"
-                    );
-
-            valor
-                    .getStyleClass()
-                    .add(
-                            "metric-value-highlight"
-                    );
-        }
-
-        card.setMaxWidth(
-                Double.MAX_VALUE
+        VBox card = new VBox(
+                8,
+                new VBox(2, tituloLabel, detalheLabel),
+                conteudo
         );
-
-        GridPane.setHgrow(
-                card,
-                Priority.ALWAYS
-        );
-
+        card.getStyleClass().addAll("surface", "visual-card");
+        card.setPadding(new Insets(14));
+        VBox.setVgrow(conteudo, Priority.ALWAYS);
         return card;
     }
 
-    /**
-     * Configura a tabela de eventos processados.
-     */
-    private void configurarTabelaEventos() {
+    private Node criarCardMetrica(String titulo, Label valor, String detalhe) {
+        Label rotulo = new Label(titulo);
+        rotulo.getStyleClass().add("metric-label");
 
-        tabelaEventos.setItems(
-                eventos
-        );
+        Label apoio = new Label(detalhe);
+        apoio.getStyleClass().add("metric-detail");
 
-        tabelaEventos.setPlaceholder(
-                new Label(
-                        "Os eventos processados aparecerão aqui."
-                )
-        );
-
-        tabelaEventos.setColumnResizePolicy(
-                TableView.CONSTRAINED_RESIZE_POLICY
-        );
-
-        /*
-         * Horário
-         */
-        TableColumn<
-                ResultadoProcessamento,
-                String
-                > horario =
-                coluna(
-                        "HORÁRIO",
-                        0.13,
-                        r ->
-                                r.getTimestampProcessamento()
-                                        .format(HORARIO)
-                );
-
-        /*
-         * Tipo
-         */
-        TableColumn<
-                ResultadoProcessamento,
-                String
-                > tipo =
-                coluna(
-                        "TIPO",
-                        0.17,
-                        r ->
-                                nomeTipo(
-                                        r.getEvento()
-                                                .getTipo()
-                                )
-                );
-
-        /*
-         * Descrição
-         */
-        TableColumn<
-                ResultadoProcessamento,
-                String
-                > descricao =
-                coluna(
-                        "DESCRIÇÃO",
-                        0.32,
-                        r ->
-                                r.getEvento()
-                                        .getDescricao()
-                );
-
-        /*
-         * Thread
-         */
-        TableColumn<
-                ResultadoProcessamento,
-                String
-                > thread =
-                coluna(
-                        "THREAD",
-                        0.24,
-                        ResultadoProcessamento
-                                ::getThreadResponsavel
-                );
-
-        /*
-         * Tempo de resposta
-         */
-        TableColumn<
-                ResultadoProcessamento,
-                String
-                > resposta =
-                coluna(
-                        "RESPOSTA",
-                        0.14,
-                        r ->
-                                INTEIRO.format(
-                                        r.getTempoRespostaMs()
-                                )
-                                        + " ms"
-                );
-
-        /*
-         * Adiciona as colunas individualmente.
-         *
-         * Isso evita o warning de varargs
-         * que aparecia anteriormente.
-         */
-        tabelaEventos
-                .getColumns()
-                .add(horario);
-
-        tabelaEventos
-                .getColumns()
-                .add(tipo);
-
-        tabelaEventos
-                .getColumns()
-                .add(descricao);
-
-        tabelaEventos
-                .getColumns()
-                .add(thread);
-
-        tabelaEventos
-                .getColumns()
-                .add(resposta);
+        VBox card = new VBox(5, rotulo, valor, apoio);
+        card.getStyleClass().addAll("surface", "metric-card");
+        HBox.setHgrow(card, Priority.ALWAYS);
+        return card;
     }
 
-    /**
-     * Cria uma coluna da tabela.
-     */
-    private TableColumn<
-            ResultadoProcessamento,
-            String
-            > coluna(
-                    String titulo,
-                    double largura,
-                    Function<
-                            ResultadoProcessamento,
-                            String
-                            > valor
-            ) {
+    private void configurarTabelaEventos() {
+        tabelaEventos.setItems(eventos);
+        tabelaEventos.setPlaceholder(new Label("Nenhum evento processado ainda."));
+        tabelaEventos.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        TableColumn<
-                ResultadoProcessamento,
-                String
-                > coluna =
-                new TableColumn<>(
-                        titulo
-                );
-
-        coluna.setCellValueFactory(
-                dado ->
-                        new SimpleStringProperty(
-                                valor.apply(
-                                        dado.getValue()
-                                )
-                        )
+        tabelaEventos.getColumns().addAll(
+                coluna("HORA", 0.12, r -> r.getTimestampProcessamento().format(HORARIO)),
+                coluna("TIPO", 0.16, r -> nomeTipo(r.getEvento().getTipo())),
+                coluna("EVENTO", 0.38, r -> r.getEvento().getDescricao()),
+                coluna("THREAD", 0.20, ResultadoProcessamento::getThreadResponsavel),
+                coluna("RESPOSTA", 0.14, r -> INTEIRO.format(r.getTempoRespostaMs()) + " ms")
         );
+    }
 
-        coluna.prefWidthProperty().bind(
-                tabelaEventos
-                        .widthProperty()
-                        .multiply(largura)
-        );
-
+    private TableColumn<ResultadoProcessamento, String> coluna(
+            String titulo,
+            double largura,
+            Function<ResultadoProcessamento, String> valor
+    ) {
+        TableColumn<ResultadoProcessamento, String> coluna = new TableColumn<>(titulo);
+        coluna.setCellValueFactory(dado -> new SimpleStringProperty(valor.apply(dado.getValue())));
+        coluna.prefWidthProperty().bind(tabelaEventos.widthProperty().multiply(largura));
         return coluna;
     }
 
-    /**
-     * Nome amigável dos tipos de evento.
-     */
-    private static String nomeTipo(
-            TipoEvento tipo
-    ) {
-
+    private static String nomeTipo(TipoEvento tipo) {
         return switch (tipo) {
-
-            case TRANSITO ->
-                    "Trânsito";
-
-            case CLIMA ->
-                    "Clima";
-
-            case ENERGIA ->
-                    "Energia";
-
-            case QUALIDADE_AR ->
-                    "Qualidade do ar";
+            case TRANSITO -> "Trânsito";
+            case CLIMA -> "Clima";
+            case ENERGIA -> "Energia";
+            case QUALIDADE_AR -> "Qualidade do ar";
         };
     }
 
-    /**
-     * Atualiza as métricas mostradas no dashboard.
-     */
-    public void atualizar(
-            DashboardSnapshot snapshot,
-            boolean registrarPonto
-    ) {
+    public void atualizar(DashboardSnapshot snapshot, boolean registrarPonto) {
+        eventosProcessados.setText(INTEIRO.format(snapshot.eventosProcessados()));
+        eventosPendentes.setText(INTEIRO.format(snapshot.eventosPendentes()));
+        threadsAtivas.setText(snapshot.threadsAtivas() + " ativas");
 
-        eventosGerados.setText(
-                INTEIRO.format(
-                        snapshot.eventosGerados()
-                )
-        );
+        taxaProcessada.setText(String.format(PT_BR, "%.1f ev/s", snapshot.taxaProcessamento()));
+        tempoMedio.setText(String.format(PT_BR, "%.0f ms", snapshot.tempoMedioRespostaMs()));
+        tempoTotal.setText(String.format(PT_BR, "%.1f s", snapshot.tempoDecorridoSegundos()));
 
-        eventosProcessados.setText(
-                INTEIRO.format(
-                        snapshot.eventosProcessados()
-                )
-        );
+        cidadeMonitor.atualizar(snapshot);
 
-        eventosPendentes.setText(
-                INTEIRO.format(
-                        snapshot.eventosPendentes()
-                )
-        );
+        graficoFila.setVisible(registrarPonto || !seriePendentes.getData().isEmpty());
+        graficoFilaVazio.setVisible(!graficoFila.isVisible());
 
-        threadsAtivas.setText(
-                snapshot.threadsAtivas()
-                        + " ativas"
-        );
-
-        taxaProcessada.setText(
-                String.format(
-                        PT_BR,
-                        "%.1f ev/s",
-                        snapshot.taxaProcessamento()
-                )
-        );
-
-        tempoMedio.setText(
-                String.format(
-                        PT_BR,
-                        "%.0f ms",
-                        snapshot.tempoMedioRespostaMs()
-                )
-        );
-
-        tempoTotal.setText(
-                String.format(
-                        PT_BR,
-                        "%.1f s",
-                        snapshot.tempoDecorridoSegundos()
-                )
-        );
-
-        /*
-         * Adiciona ponto ao gráfico somente
-         * durante a execução.
-         */
         if (registrarPonto) {
+            seriePendentes.getData().add(new XYChart.Data<>(
+                    snapshot.tempoDecorridoSegundos(),
+                    snapshot.eventosPendentes()
+            ));
 
-            seriePendentes
-                    .getData()
-                    .add(
-                            new XYChart.Data<>(
-                                    snapshot
-                                            .tempoDecorridoSegundos(),
-                                    snapshot
-                                            .eventosPendentes()
-                            )
-                    );
-
-            if (
-                    seriePendentes
-                            .getData()
-                            .size()
-                            > MAX_PONTOS_GRAFICO
-            ) {
-
-                seriePendentes
-                        .getData()
-                        .remove(0);
+            if (seriePendentes.getData().size() > MAX_PONTOS_GRAFICO) {
+                seriePendentes.getData().remove(0);
             }
         }
     }
 
-    /**
-     * Adiciona um resultado à tabela.
-     */
-    public void adicionarEvento(
-            ResultadoProcessamento resultado
-    ) {
+    public void adicionarEvento(ResultadoProcessamento resultado) {
+        eventos.add(0, resultado);
+        cidadeMonitor.animarProcessamento(resultado);
 
-        eventos.add(
-                0,
-                resultado
-        );
-
-        if (
-                eventos.size()
-                        > MAX_EVENTOS_RECENTES
-        ) {
-
-            eventos.remove(
-                    MAX_EVENTOS_RECENTES,
-                    eventos.size()
-            );
+        if (eventos.size() > MAX_EVENTOS_RECENTES) {
+            eventos.remove(MAX_EVENTOS_RECENTES, eventos.size());
         }
     }
 
-    /**
-     * Limpa os dados do dashboard.
-     */
     public void limparDados() {
-
         eventos.clear();
-
-        seriePendentes
-                .getData()
-                .clear();
-
-        atualizar(
-                DashboardSnapshot.vazio(),
-                false
-        );
+        seriePendentes.getData().clear();
+        graficoFila.setVisible(false);
+        graficoFilaVazio.setVisible(true);
+        cidadeMonitor.resetar();
+        atualizar(DashboardSnapshot.vazio(), false);
     }
 
-    /**
-     * Retorna a quantidade de Threads escolhida.
-     */
     public int getQuantidadeThreads() {
-
-        return (int) Math.round(
-                sliderThreads.getValue()
-        );
+        return (int) Math.round(sliderThreads.getValue());
     }
 
-    /**
-     * Retorna o tempo de processamento.
-     */
     public int getTempoProcessamento() {
-
-        String texto =
-                tempoProcessamento
-                        .getEditor()
-                        .getText()
-                        .trim();
-
+        String texto = tempoProcessamento.getEditor().getText().trim();
         try {
-
-            int valor =
-                    Integer.parseInt(texto);
-
-            if (
-                    valor < 0
-                            || valor > 5_000
-            ) {
-
-                throw new IllegalArgumentException(
-                        "O tempo de processamento deve estar entre 0 e 5.000 ms"
-                );
+            int valor = Integer.parseInt(texto);
+            if (valor < 0 || valor > 5_000) {
+                throw new IllegalArgumentException("O tempo de processamento deve estar entre 0 e 5.000 ms");
             }
-
-            tempoProcessamento
-                    .getValueFactory()
-                    .setValue(valor);
-
+            tempoProcessamento.getValueFactory().setValue(valor);
             return valor;
-
-        } catch (
-                NumberFormatException e
-        ) {
-
+        } catch (NumberFormatException e) {
             throw new IllegalArgumentException(
                     "Informe o tempo de processamento em milissegundos, usando apenas números"
             );
         }
     }
 
-    /**
-     * Atualiza os controles conforme
-     * o estado do experimento.
-     */
-    public void setExecutando(
-            boolean executando
-    ) {
-
-        sliderThreads.setDisable(
-                executando
-        );
-
-        tempoProcessamento.setDisable(
-                executando
-        );
-
-        iniciar.setDisable(
-                executando
-        );
-
-        parar.setDisable(
-                !executando
-        );
-
-        resetar.setDisable(
-                executando
-        );
+    public void setExecutando(boolean executando) {
+        sliderThreads.setDisable(executando);
+        tempoProcessamento.setDisable(executando);
+        iniciar.setDisable(executando);
+        parar.setDisable(!executando);
+        resetar.setDisable(executando);
     }
 
-    /**
-     * Estado intermediário enquanto
-     * as Threads estão sendo encerradas.
-     */
     public void setFinalizando() {
-
         iniciar.setDisable(true);
         parar.setDisable(true);
         resetar.setDisable(true);
     }
 
-    public Button getBotaoIniciar() {
-        return iniciar;
-    }
+    public Button getBotaoIniciar() { return iniciar; }
+    public Button getBotaoParar() { return parar; }
+    public Button getBotaoResetar() { return resetar; }
+    public Label getThreadsAtivas() { return threadsAtivas; }
 
-    public Button getBotaoParar() {
-        return parar;
-    }
-
-    public Button getBotaoResetar() {
-        return resetar;
-    }
-
-    public Label getThreadsAtivas() {
-        return threadsAtivas;
-    }
-
-    private static Label criarRotuloCampo(
-            String texto
-    ) {
-
-        Label label =
-                new Label(texto);
-
-        label
-                .getStyleClass()
-                .add("field-label");
-
+    private static Label criarRotuloCampo(String texto) {
+        Label label = new Label(texto);
+        label.getStyleClass().add("field-label");
         return label;
     }
 
-    private static Label valorMetrica(
-            String texto
-    ) {
-
-        Label label =
-                new Label(texto);
-
-        label
-                .getStyleClass()
-                .add("metric-value");
-
+    private static Label valorMetrica(String texto) {
+        Label label = new Label(texto);
+        label.getStyleClass().add("metric-value");
         return label;
+    }
+
+    private static Region criarEspaco() {
+        Region espaco = new Region();
+        HBox.setHgrow(espaco, Priority.ALWAYS);
+        return espaco;
     }
 }
