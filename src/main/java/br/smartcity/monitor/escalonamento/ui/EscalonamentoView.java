@@ -51,7 +51,14 @@ public final class EscalonamentoView extends BorderPane {
         VBox sincronismo=new VBox(8,new Label("SINCRONISMO DE ARQUIVO COMPARTILHADO"),new Label("Cada processo representa um sensor que grava no mesmo arquivo físico."),sync,syncOutput); sincronismo.setPadding(new Insets(12)); sincronismo.setStyle(cardStyle());
         resultados.setPadding(new Insets(12)); resultados.setStyle(cardStyle());
         VBox reproducao = criarPainelReproducao();
-        VBox centro=new VBox(12,carga,resultados,reproducao,sincronismo); setCenter(centro); atualizarTabela();
+        VBox centro=new VBox(12,carga,resultados,reproducao,sincronismo);
+        centro.setFillWidth(true);
+        ScrollPane rolagem=new ScrollPane(centro);
+        rolagem.setFitToWidth(true);
+        rolagem.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        rolagem.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        rolagem.setStyle("-fx-background: #f3f6f8; -fx-background-color: #f3f6f8;");
+        setCenter(rolagem); atualizarTabela();
         algoritmoReproducao.setValue("FCFS");
         definirControlesHabilitados(false);
     }
@@ -159,7 +166,21 @@ public final class EscalonamentoView extends BorderPane {
     }
 
     private void pararTimeline(){ timeline.stop(); }
-    private VBox painel(ResultadoEscalonamento r){MetricasEscalonamento m=r.metricas();Label h=new Label(r.algoritmo()+" — Gantt: "+r.gantt().stream().map(t->t.processoId()+" ["+t.inicio()+"–"+t.fim()+"]").reduce((a,b)->a+"  →  "+b).orElse("—"));h.setWrapText(true);Label stats=new Label(String.format(Locale.forLanguageTag("pt-BR"),"Espera média: %.2f | Retorno: %.2f | Resposta: %.2f | Duração: %d | Trocas: %d | CPU útil: %.1f%% | Vazão: %.3f proc/unid",m.tempoMedioEspera(),m.tempoMedioRetorno(),m.tempoMedioResposta(),m.makespan(),m.trocasContexto(),m.utilizacaoCpuPercentual(),m.vazao()));stats.setWrapText(true);return new VBox(5,h,stats);}
+    private VBox painel(ResultadoEscalonamento r){
+        MetricasEscalonamento m=r.metricas();
+        Label h=new Label(r.algoritmo()+" — Gantt:\n"+r.gantt().stream()
+                .map(t->{
+                    String nome=t.tipo()==TipoTrechoExecucao.OCIOSO?"CPU ociosa":
+                            t.tipo()==TipoTrechoExecucao.TROCA_CONTEXTO?"TROCA CONTEXTO":t.processoId();
+                    return nome+" ["+t.inicio()+"–"+t.fim()+"]";
+                }).reduce((a,b)->a+"  →  "+b).orElse("—"));
+        h.setWrapText(true); h.setMaxWidth(Double.MAX_VALUE);
+        Label stats=new Label(String.format(Locale.forLanguageTag("pt-BR"),
+                "Espera média: %.2f | Retorno: %.2f | Resposta: %.2f | Duração: %d | Trocas: %d | CPU útil: %.1f%% | Vazão: %.3f proc/unid",
+                m.tempoMedioEspera(),m.tempoMedioRetorno(),m.tempoMedioResposta(),m.makespan(),m.trocasContexto(),m.utilizacaoCpuPercentual(),m.vazao()));
+        stats.setWrapText(true); stats.setMaxWidth(Double.MAX_VALUE);
+        return new VBox(5,h,stats);
+    }
     private TableView<String[]> tabelaComparativa(ComparacaoEscalonamento c){TableView<String[]> t=new TableView<>();t.setPrefHeight(165);t.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);String[][] rows={{"Espera média",fmt(c.fcfs().metricas().tempoMedioEspera()),fmt(c.roundRobin().metricas().tempoMedioEspera())},{"Retorno médio",fmt(c.fcfs().metricas().tempoMedioRetorno()),fmt(c.roundRobin().metricas().tempoMedioRetorno())},{"Resposta média",fmt(c.fcfs().metricas().tempoMedioResposta()),fmt(c.roundRobin().metricas().tempoMedioResposta())},{"Duração total",String.valueOf(c.fcfs().metricas().makespan()),String.valueOf(c.roundRobin().metricas().makespan())},{"Trocas de contexto",String.valueOf(c.fcfs().metricas().trocasContexto()),String.valueOf(c.roundRobin().metricas().trocasContexto())}};for(int i=0;i<3;i++){final int n=i;TableColumn<String[],String> col=new TableColumn<>(new String[]{"Métrica","FCFS","Round Robin"}[i]);col.setCellValueFactory(v->new javafx.beans.property.ReadOnlyStringWrapper(v.getValue()[n]));t.getColumns().add(col);}t.setItems(FXCollections.observableArrayList(rows));return t;}
     private String fmt(double n){return String.format(Locale.forLanguageTag("pt-BR"),"%.2f",n);}
     private void executarSync(){List<ProcessoUrbano> carga=controller.obterProcessos();if(carga.isEmpty()){erro("Cadastre pelo menos um processo.");return;}syncOutput.setText("Executando os sensores concorrentes...");CompletableFuture.supplyAsync(()->{try{return new SimuladorSincronismo().comparar(carga,Path.of("target","experimento-sincronismo"));}catch(Exception ex){throw new RuntimeException(ex);}}).whenComplete((r,ex)->Platform.runLater(()->{if(ex!=null){syncOutput.setText("Falha: "+ex.getCause().getMessage());return;}syncOutput.setText(formatSync(r.semSincronismo())+"\n\n"+formatSync(r.comSincronismo()));}));}
