@@ -1,6 +1,7 @@
 package br.smartcity.monitor.ui;
 
 import br.smartcity.monitor.config.ConfiguracaoExperimento;
+import br.smartcity.monitor.escalonamento.ui.EscalonamentoView;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
@@ -73,13 +74,18 @@ public final class SmartCityApplication extends Application {
         Tab resultadosTab =
                 new Tab("Resultados", resultados);
 
+        Tab escalonamentoTab =
+                new Tab("Escalonamento de CPU", new EscalonamentoView());
+
         monitoramentoTab.setClosable(false);
         resultadosTab.setClosable(false);
+        escalonamentoTab.setClosable(false);
 
         TabPane abas =
                 new TabPane(
                         monitoramentoTab,
-                        resultadosTab
+                        resultadosTab,
+                        escalonamentoTab
                 );
 
         abas.setTabClosingPolicy(
