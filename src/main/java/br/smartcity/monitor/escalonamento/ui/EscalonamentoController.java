@@ -22,11 +22,13 @@ public final class EscalonamentoController {
 
     public static final int QUANTUM_PADRAO = 2;
     public static final int CUSTO_TROCA_CONTEXTO_PADRAO = 1;
+    public static final int TAMANHO_ESCRITA_PADRAO = 3;
 
     private final List<ProcessoUrbano> processos = new ArrayList<>();
     private int proximaOrdemCadastro;
     private int quantum = QUANTUM_PADRAO;
     private int custoTrocaContexto = CUSTO_TROCA_CONTEXTO_PADRAO;
+    private int tamanhoEscrita = TAMANHO_ESCRITA_PADRAO;
     private ModoSincronizacao modoSincronizacao =
             ModoSincronizacao.COM_SINCRONISMO;
     private boolean edicaoBloqueada;
@@ -157,6 +159,21 @@ public final class EscalonamentoController {
             );
         }
         this.custoTrocaContexto = custoTrocaContexto;
+    }
+
+    /** Tempo de CPU (no fim de cada burst) gasto escrevendo no arquivo compartilhado. */
+    public synchronized int getTamanhoEscrita() {
+        return tamanhoEscrita;
+    }
+
+    public synchronized void setTamanhoEscrita(int tamanhoEscrita) {
+        garantirEdicaoPermitida();
+        if (tamanhoEscrita < 1) {
+            throw new IllegalArgumentException(
+                    "A escrita no arquivo deve durar pelo menos 1 unidade"
+            );
+        }
+        this.tamanhoEscrita = tamanhoEscrita;
     }
 
     public synchronized ModoSincronizacao getModoSincronizacao() {
