@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -18,29 +20,104 @@ import java.util.concurrent.Future;
 
 /**
  * Executa uma thread de sensor por processo sobre o mesmo arquivo físico.
+ *
+ * <p>Tempos em milissegundos de relógio variam entre execuções (JIT, cache de disco,
+ * escalonador do sistema operacional). Para que a comparação entre os modos não dependa
+ * de quem rodou primeiro, {@link #comparar} aquece a JVM, alterna os modos a cada rodada
+ * e usa a <b>mediana</b> de várias execuções. Veja a seção "Por que o valor sem sincronismo
+ * às vezes é maior" do README.
  */
 public final class SimuladorSincronismo {
+
+    /** Execuções descartadas antes de medir (carga de classes, JIT, cache de disco). */
+    public static final int AQUECIMENTOS_PADRAO = 3;
+
+    /** Execuções medidas; o resultado publicado usa a mediana delas. */
+    public static final int REPETICOES_PADRAO = 15;
 
     public ComparacaoSincronismo comparar(
             List<ProcessoUrbano> processos,
             Path diretorio
     ) throws IOException, InterruptedException {
+        return comparar(processos, diretorio, REPETICOES_PADRAO);
+    }
+
+    /**
+     * Compara os dois modos com a mesma carga. Os modos são alternados a cada rodada
+     * (sem, com, sem, com...) para que oscilações do sistema afetem ambos igualmente.
+     */
+    public ComparacaoSincronismo comparar(
+            List<ProcessoUrbano> processos,
+            Path diretorio,
+            int repeticoes
+    ) throws IOException, InterruptedException {
         List<ProcessoUrbano> carga = validarCarga(processos);
+        validarRepeticoes(repeticoes);
         Path diretorioSeguro = Objects.requireNonNull(diretorio, "diretorio")
                 .toAbsolutePath()
                 .normalize();
+        Path arquivoSem = diretorioSeguro.resolve("sem-sincronismo.txt");
+        Path arquivoCom = diretorioSeguro.resolve("com-sincronismo.txt");
 
-        ResultadoSincronismo semSincronismo = executar(
-                carga,
-                ModoSincronizacao.SEM_SINCRONISMO,
-                diretorioSeguro.resolve("sem-sincronismo.txt")
+        for (int i = 0; i < AQUECIMENTOS_PADRAO; i++) {
+            executar(carga, ModoSincronizacao.SEM_SINCRONISMO, arquivoSem);
+            executar(carga, ModoSincronizacao.COM_SINCRONISMO, arquivoCom);
+        }
+        List<ResultadoSincronismo> medidosSem = new ArrayList<>();
+        List<ResultadoSincronismo> medidosCom = new ArrayList<>();
+        for (int i = 0; i < repeticoes; i++) {
+            medidosSem.add(executar(carga, ModoSincronizacao.SEM_SINCRONISMO, arquivoSem));
+            medidosCom.add(executar(carga, ModoSincronizacao.COM_SINCRONISMO, arquivoCom));
+        }
+        return new ComparacaoSincronismo(consolidar(medidosSem), consolidar(medidosCom));
+    }
+
+    /** Executa um único modo com aquecimento e mediana de {@code repeticoes} execuções. */
+    public ResultadoSincronismo medir(
+            List<ProcessoUrbano> processos,
+            ModoSincronizacao modo,
+            Path arquivo,
+            int repeticoes
+    ) throws IOException, InterruptedException {
+        List<ProcessoUrbano> carga = validarCarga(processos);
+        Objects.requireNonNull(modo, "modo");
+        validarRepeticoes(repeticoes);
+        for (int i = 0; i < AQUECIMENTOS_PADRAO; i++) {
+            executar(carga, modo, arquivo);
+        }
+        List<ResultadoSincronismo> medidos = new ArrayList<>();
+        for (int i = 0; i < repeticoes; i++) {
+            medidos.add(executar(carga, modo, arquivo));
+        }
+        return consolidar(medidos);
+    }
+
+    /** Mediana da duração e da espera; o conteúdo do arquivo é o da execução mediana. */
+    static ResultadoSincronismo consolidar(List<ResultadoSincronismo> execucoes) {
+        List<ResultadoSincronismo> porDuracao = execucoes.stream()
+                .sorted(Comparator.comparingDouble(ResultadoSincronismo::duracaoMs))
+                .toList();
+        ResultadoSincronismo mediana = porDuracao.get(porDuracao.size() / 2);
+        double[] esperas = execucoes.stream()
+                .mapToDouble(ResultadoSincronismo::tempoMedioEsperaMs)
+                .sorted()
+                .toArray();
+        return new ResultadoSincronismo(
+                mediana.modo(),
+                mediana.arquivo(),
+                mediana.registrosEsperados(),
+                mediana.registrosValidos(),
+                mediana.registrosCorrompidos(),
+                mediana.duracaoMs(),
+                esperas[esperas.length / 2],
+                mediana.conteudoArquivo()
         );
-        ResultadoSincronismo comSincronismo = executar(
-                carga,
-                ModoSincronizacao.COM_SINCRONISMO,
-                diretorioSeguro.resolve("com-sincronismo.txt")
-        );
-        return new ComparacaoSincronismo(semSincronismo, comSincronismo);
+    }
+
+    private static void validarRepeticoes(int repeticoes) {
+        if (repeticoes < 1) {
+            throw new IllegalArgumentException("As repetições devem ser pelo menos 1");
+        }
     }
 
     public ResultadoSincronismo executar(
