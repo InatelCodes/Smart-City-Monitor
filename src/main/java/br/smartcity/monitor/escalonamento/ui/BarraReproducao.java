@@ -27,6 +27,7 @@ final class BarraReproducao extends HBox {
             List.of(0.5, 1.0, 2.0, 4.0), v -> (v == 0.5 ? "0,5" : String.valueOf(v.intValue())) + "×");
     private Timeline animacao;
     private int tempoMax = 1;
+    private int passoUnidades = 1;
 
     BarraReproducao(DoubleProperty tempo) {
         super(12);
@@ -35,7 +36,7 @@ final class BarraReproducao extends HBox {
         setAlignment(Pos.CENTER_LEFT);
 
         reproduzir.getStyleClass().add("btn-secundario");
-        Button passo = new Button("⏭  +1");
+        Button passo = new Button("⏭  Passo");
         passo.getStyleClass().add("btn-secundario");
         Button reiniciar = new Button("↺");
         reiniciar.getStyleClass().add("btn-secundario");
@@ -66,7 +67,7 @@ final class BarraReproducao extends HBox {
                 animacao.pause();
             }
             reproduzir.setText("▶  Reproduzir");
-            tempo.set(Math.min(tempoMax, Math.floor(tempo.get() + 1e-9) + 1));
+            tempo.set(Math.min(tempoMax, Math.floor(tempo.get() + 1e-9) + passoUnidades));
         });
         reiniciar.setOnAction(e -> {
             if (animacao != null) {
@@ -90,6 +91,7 @@ final class BarraReproducao extends HBox {
     void configurar(int tempoMaximo) {
         parar();
         tempoMax = Math.max(1, tempoMaximo);
+        passoUnidades = Math.max(1, tempoMax / 40);
         slider.setMin(0);
         slider.setMax(tempoMax);
         tempo.set(tempoMax);
@@ -107,7 +109,7 @@ final class BarraReproducao extends HBox {
     }
 
     private void atualizarPosicao() {
-        posicao.setText("tempo " + (int) Math.floor(tempo.get() + 1e-9) + " / " + tempoMax);
+        posicao.setText("tempo " + Tema.inteiro((long) Math.floor(tempo.get() + 1e-9)) + " / " + Tema.inteiro(tempoMax));
     }
 
     private void alternar() {
@@ -123,7 +125,7 @@ final class BarraReproducao extends HBox {
         }
         double inicio = tempo.get() >= tempoMax ? 0 : tempo.get();
         tempo.set(inicio);
-        double duracao = Math.min(60, Math.max(2, (tempoMax - inicio) * 0.5));
+        double duracao = Math.min(20, Math.max(2, (tempoMax - inicio) * 0.5));
         animacao = new Timeline(
                 new KeyFrame(Duration.ZERO, new KeyValue(tempo, inicio, Interpolator.LINEAR)),
                 new KeyFrame(Duration.seconds(duracao), new KeyValue(tempo, tempoMax, Interpolator.LINEAR)));

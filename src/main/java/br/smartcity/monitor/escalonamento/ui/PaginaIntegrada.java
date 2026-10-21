@@ -47,7 +47,7 @@ final class PaginaIntegrada extends VBox {
             new Metrica("Retorno médio", "menor é melhor", e -> e.resultado().metricas().tempoMedioRetorno(), true, false),
             new Metrica("Duração total", "menor é melhor", e -> e.resultado().metricas().makespan(), true, true),
             new Metrica("Trocas de contexto", "menos é melhor", e -> e.resultado().metricas().trocasContexto(), true, true),
-            new Metrica("Tempo bloqueado no lock", "soma de todos os processos", e -> e.tempoBloqueadoTotal(), true, true));
+            new Metrica("Tempo bloqueado", "soma no lock, todos os processos", e -> e.tempoBloqueadoTotal(), true, true));
 
     private static final String COR_FCFS_SEM = "#8aa0ab";
     private static final String COR_FCFS_COM = "#173b4a";
@@ -84,7 +84,8 @@ final class PaginaIntegrada extends VBox {
     }
 
     private void atualizarExplicacao() {
-        String base = "Mesma carga, mesmos parâmetros. Ao fim do burst, cada processo grava um registro no arquivo (região crítica). ";
+        String base = "Mesma carga, mesmos parâmetros, tempo lógico (ut): o resultado é idêntico a cada execução. "
+                + "Ao fim do burst, cada processo grava um registro no arquivo (região crítica). ";
         explicacao.setText(base + switch (modo.valor()) {
             case FCFS -> "O FCFS não preempta: veja se sincronizar muda alguma coisa.";
             case RR -> "No Round Robin a preempção pode cortar uma escrita no meio.";
@@ -117,6 +118,9 @@ final class PaginaIntegrada extends VBox {
             int w = ctrl.getTamanhoEscrita();
             var sim = new SimuladorEscalonamentoSincronizado();
             PaginaCpu.Modo m = modo.valor();
+            if (m != PaginaCpu.Modo.FCFS) {
+                EscalonamentoController.validarFatias(carga, q);
+            }
             ExecucaoIntegrada fSem = null;
             ExecucaoIntegrada fCom = null;
             ExecucaoIntegrada rSem = null;
@@ -255,7 +259,7 @@ final class PaginaIntegrada extends VBox {
                 }
                 String texto = m.nome().equals("Registros íntegros")
                         ? (int) v + " de " + c.execucao().registrosEsperados()
-                        : m.inteiro() ? String.valueOf((int) Math.round(v)) : Tema.num(v);
+                        : m.inteiro() ? Tema.inteiro(Math.round(v)) : Tema.num(v);
                 barras.getChildren().add(new BarraValor(texto, v / max, c.cor(), vence));
             }
             Label melhores = Tema.rotulo(vencedores.size() == colunas.size() ? "todos iguais" : "melhor: " + String.join(" · ", vencedores), "placar-dica");
@@ -321,19 +325,41 @@ final class PaginaIntegrada extends VBox {
                     + " registros saíram corrompidos (a preempção cortou escritas no meio); com lock, "
                     + com.registrosCorrompidos() + " de " + n + ".");
         }
+
         MetricasEscalonamento a = sem.resultado().metricas();
         MetricasEscalonamento b = com.resultado().metricas();
-        boolean igual = com.tempoBloqueadoTotal() == 0 && a.makespan() == b.makespan()
-                && Math.abs(a.tempoMedioEspera() - b.tempoMedioEspera()) < 0.005
-                && Math.abs(a.tempoMedioResposta() - b.tempoMedioResposta()) < 0.005;
-        if (igual) {
-            frases.add(nome + ": o lock não custou nada — ninguém precisou esperar por ele.");
-        } else {
-            frases.add(nome + ": o lock custou — espera média " + Tema.num(a.tempoMedioEspera()) + " → " + Tema.num(b.tempoMedioEspera())
-                    + ", resposta " + Tema.num(a.tempoMedioResposta()) + " → " + Tema.num(b.tempoMedioResposta())
-                    + ", duração " + a.makespan() + " → " + b.makespan()
-                    + "; os processos somaram " + com.tempoBloqueadoTotal() + " un. dormindo esperando o arquivo.");
+        List<String> melhorou = new ArrayList<>();
+        List<String> piorou = new ArrayList<>();
+        comparar("espera média", a.tempoMedioEspera(), b.tempoMedioEspera(), false, melhorou, piorou);
+        comparar("resposta média", a.tempoMedioResposta(), b.tempoMedioResposta(), false, melhorou, piorou);
+        comparar("retorno médio", a.tempoMedioRetorno(), b.tempoMedioRetorno(), false, melhorou, piorou);
+        comparar("duração total", a.makespan(), b.makespan(), true, melhorou, piorou);
+        comparar("trocas de contexto", a.trocasContexto(), b.trocasContexto(), true, melhorou, piorou);
+
+        if (melhorou.isEmpty() && piorou.isEmpty()) {
+            frases.add(nome + ": o lock não mudou nenhum tempo — ninguém precisou esperar por ele.");
+            return frases;
+        }
+        if (!piorou.isEmpty()) {
+            frases.add(nome + ": o lock custou — " + String.join("; ", piorou) + ". Os processos somaram "
+                    + Tema.inteiro(com.tempoBloqueadoTotal()) + " ut dormindo esperando o arquivo.");
+        }
+        if (!melhorou.isEmpty()) {
+            frases.add(nome + ": o lock até melhorou — " + String.join("; ", melhorou)
+                    + ". Quem encontra o arquivo ocupado dorme sem gastar CPU nem troca de contexto e o dono do lock "
+                    + "termina sem ser interrompido: o escalonamento fica mais perto de \"rodar até acabar\", "
+                    + "que tem menos trocas (explicação no README).");
         }
         return frases;
+    }
+
+    private static void comparar(String nome, double sem, double com, boolean inteiro,
+                                 List<String> melhorou, List<String> piorou) {
+        if (Math.abs(sem - com) < 0.005) {
+            return;
+        }
+        String texto = nome + " " + (inteiro ? Tema.inteiro(Math.round(sem)) : Tema.num(sem))
+                + " → " + (inteiro ? Tema.inteiro(Math.round(com)) : Tema.num(com));
+        (com < sem ? melhorou : piorou).add(texto);
     }
 }

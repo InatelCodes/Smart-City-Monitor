@@ -158,7 +158,7 @@ final class CartaoAlgoritmo extends VBox {
     private void atualizar(double t) {
         int agora = (int) Math.floor(t + 1e-9);
         boolean concluido = agora >= fimGantt;
-        relogio.setText(concluido ? "t = " + fimGantt + "  ✓" : "t = " + agora);
+        relogio.setText(concluido ? "t = " + Tema.inteiro(fimGantt) + "  ✓" : "t = " + Tema.inteiro(agora));
 
         TrechoExecucao atual = null;
         if (!concluido) {
@@ -251,7 +251,7 @@ final class CartaoAlgoritmo extends VBox {
             int total = resultado.processos().stream()
                     .filter(p -> p.processo().id().equals(atual.processoId()))
                     .mapToInt(p -> p.processo().burst()).findFirst().orElse(0);
-            sub = Tema.nome(atual.tipoEvento()) + " · " + feito + "/" + total;
+            sub = Tema.nome(atual.tipoEvento()) + " · " + Tema.inteiro(feito) + "/" + Tema.inteiro(total);
         } else if (atual.tipo() == TipoTrechoExecucao.TROCA_CONTEXTO) {
             fundo = "#64748b";
             titulo = "Troca de contexto";

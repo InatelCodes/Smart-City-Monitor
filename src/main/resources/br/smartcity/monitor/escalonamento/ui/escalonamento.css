@@ -134,3 +134,7 @@
 .chip-corrompido { -fx-border-color: #d9534f; -fx-border-width: 2; -fx-border-radius: 8; }
 .chip-bloqueado { -fx-opacity: 0.8; -fx-border-color: #d9534f; -fx-border-width: 2; -fx-border-radius: 10; }
 
+
+/* campo numérico editável */
+.contador-campo { -fx-background-color: transparent; -fx-background-insets: 0; -fx-border-color: transparent; -fx-font-weight: bold; -fx-font-size: 15px; -fx-text-fill: #102f3d; -fx-padding: 3 4; }
+.contador-campo:focused { -fx-background-color: #ffffff; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(43,155,145,0.55), 6, 0, 0, 0); }

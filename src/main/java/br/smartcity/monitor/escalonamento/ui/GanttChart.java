@@ -99,14 +99,18 @@ final class GanttChart extends Region {
         desenhar();
     }
 
-    private static int passoDaEscala(double pxPorUnidade) {
-        int[] opcoes = {1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 5000, 10000};
-        for (int passo : opcoes) {
-            if (passo * pxPorUnidade >= 30) {
-                return passo;
+    /** Menor passo "redondo" (1, 2, 5 × 10^k) que deixa os rótulos do eixo sem encostar. */
+    private int passoDaEscala(double pxPorUnidade) {
+        double minimo = Math.max(36, Tema.inteiro(tempoMax).length() * 6.8 + 22);
+        for (long potencia = 1; potencia <= 1_000_000_000L; potencia *= 10) {
+            for (int base : new int[]{1, 2, 5}) {
+                long passo = base * potencia;
+                if (passo * pxPorUnidade >= minimo) {
+                    return (int) passo;
+                }
             }
         }
-        return 20000;
+        return Integer.MAX_VALUE;
     }
 
     private void desenhar() {
@@ -118,7 +122,8 @@ final class GanttChart extends Region {
             return;
         }
 
-        double area = Math.max(10, largura - ESQ - DIR);
+        double direita = Math.max(DIR, Tema.inteiro(tempoMax).length() * 3.6 + 8);
+        double area = Math.max(10, largura - ESQ - direita);
         double px = area / tempoMax;
         double yCpu = TOPO;
         double yProc = TOPO + RAIA_CPU + FOLGA;
@@ -144,7 +149,7 @@ final class GanttChart extends Region {
             desenharMarca(g, t, px, yCpu, yFim);
             ultimo = t;
         }
-        if (ultimo != tempoMax && (tempoMax - ultimo) * px >= 22) {
+        if (ultimo != tempoMax && (tempoMax - ultimo) * px >= Tema.inteiro(tempoMax).length() * 6.8 + 16) {
             desenharMarca(g, tempoMax, px, yCpu, yFim);
         }
 
@@ -163,7 +168,11 @@ final class GanttChart extends Region {
                 case OCIOSO -> OCIOSA;
             };
             g.setFill(cor);
-            g.fillRoundRect(x + 0.5, yCpu + 4, Math.max(1, w - 1), RAIA_CPU - 8, 8, 8);
+            if (w < 3) {
+                g.fillRect(x, yCpu + 4, Math.max(1, w), RAIA_CPU - 8);
+            } else {
+                g.fillRoundRect(x + 0.5, yCpu + 4, Math.max(1, w - 1), RAIA_CPU - 8, 8, 8);
+            }
             sobreporEscrita(g, trecho, px, yCpu + 4, RAIA_CPU - 8);
             String texto = switch (trecho.tipo()) {
                 case PROCESSO -> trecho.processoId();
@@ -223,11 +232,16 @@ final class GanttChart extends Region {
                 double x = ESQ + trecho.inicio() * px;
                 double w = trecho.duracao() * px;
                 g.setFill(cor);
-                g.fillRoundRect(x + 0.5, y + 4, Math.max(1, w - 1), RAIA - 8, 7, 7);
+                if (w < 3) {
+                    g.fillRect(x, y + 4, Math.max(1, w), RAIA - 8);
+                } else {
+                    g.fillRoundRect(x + 0.5, y + 4, Math.max(1, w - 1), RAIA - 8, 7, 7);
+                }
                 sobreporEscrita(g, trecho, px, y + 4, RAIA - 8);
-                if (w >= 20) {
+                String duracao = Tema.inteiro(trecho.duracao());
+                if (w >= duracao.length() * 6.8 + 10) {
                     g.setFill(Color.WHITE);
-                    g.fillText(String.valueOf(trecho.duracao()), x + w / 2, y + RAIA / 2);
+                    g.fillText(duracao, x + w / 2, y + RAIA / 2);
                 }
             }
             // marca de chegada
@@ -260,13 +274,15 @@ final class GanttChart extends Region {
             g.setStroke(TINTA);
             g.setLineWidth(2);
             g.strokeLine(xp, yCpu - 6, xp, yFim);
-            String texto = "t = " + (int) Math.floor(t + 1e-9);
+            String texto = "t = " + Tema.inteiro((long) Math.floor(t + 1e-9));
+            double larguraEtiqueta = Math.max(48, texto.length() * 7 + 14);
+            double xEtiqueta = Math.max(0, Math.min(canvas.getWidth() - larguraEtiqueta, xp - larguraEtiqueta / 2));
             g.setFill(TINTA);
-            g.fillRoundRect(xp - 24, 2, 48, 18, 9, 9);
+            g.fillRoundRect(xEtiqueta, 2, larguraEtiqueta, 18, 9, 9);
             g.setFill(Color.WHITE);
             g.setTextAlign(TextAlignment.CENTER);
             g.setFont(Font.font("System", FontWeight.BOLD, 11));
-            g.fillText(texto, xp, 11);
+            g.fillText(texto, xEtiqueta + larguraEtiqueta / 2, 11);
         }
     }
 
@@ -312,6 +328,6 @@ final class GanttChart extends Region {
         g.setFill(Color.web("#6b7c85"));
         g.setTextAlign(TextAlignment.CENTER);
         g.setFont(Font.font("System", 11));
-        g.fillText(String.valueOf(t), x, yFim + 14);
+        g.fillText(Tema.inteiro(t), x, yFim + 14);
     }
 }

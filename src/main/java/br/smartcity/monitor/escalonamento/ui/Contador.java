@@ -4,17 +4,25 @@ import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 
-/** Campo numérico com botões − e +, sem digitação (nada para validar). */
+/**
+ * Campo numérico com − e +. Aceita digitação (Enter ou sair do campo confirma) e os botões
+ * andam de {@code passo} em {@code passo}, para funcionar bem com valores de dezenas de milhares.
+ */
 final class Contador extends HBox {
 
     private final IntegerProperty valor = new SimpleIntegerProperty();
+    private final TextField campo = new TextField();
+    private final int minimo;
+    private final int maximo;
 
-    Contador(int inicial, int minimo, int maximo) {
+    Contador(int inicial, int minimo, int maximo, int passo) {
         super(0);
+        this.minimo = minimo;
+        this.maximo = maximo;
         getStyleClass().add("contador");
         setAlignment(Pos.CENTER);
 
@@ -22,17 +30,39 @@ final class Contador extends HBox {
         Button mais = new Button("+");
         menos.getStyleClass().add("contador-btn");
         mais.getStyleClass().add("contador-btn");
-        Label numero = new Label();
-        numero.getStyleClass().add("contador-valor");
-        numero.setMaxWidth(Double.MAX_VALUE);
-        numero.setAlignment(Pos.CENTER);
-        HBox.setHgrow(numero, Priority.ALWAYS);
-        numero.textProperty().bind(valor.asString());
+        campo.getStyleClass().add("contador-campo");
+        campo.setAlignment(Pos.CENTER);
+        HBox.setHgrow(campo, Priority.ALWAYS);
 
+        valor.addListener((obs, a, b) -> campo.setText(Tema.inteiro(b.intValue())));
         valor.set(inicial);
-        menos.setOnAction(e -> valor.set(Math.max(minimo, valor.get() - 1)));
-        mais.setOnAction(e -> valor.set(Math.min(maximo, valor.get() + 1)));
-        getChildren().addAll(menos, numero, mais);
+        campo.setText(Tema.inteiro(inicial));
+
+        menos.setOnAction(e -> definir((long) valor.get() - passo));
+        mais.setOnAction(e -> definir((long) valor.get() + passo));
+        campo.setOnAction(e -> confirmar());
+        campo.focusedProperty().addListener((obs, a, focado) -> {
+            if (!focado) {
+                confirmar();
+            }
+        });
+        getChildren().addAll(menos, campo, mais);
+    }
+
+    /** Lê o que foi digitado (ignora pontos e letras) e ajusta aos limites. */
+    void confirmar() {
+        String digitos = campo.getText() == null ? "" : campo.getText().replaceAll("\\D", "");
+        if (digitos.isEmpty()) {
+            campo.setText(Tema.inteiro(valor.get()));
+            return;
+        }
+        long lido = digitos.length() > 9 ? Integer.MAX_VALUE : Long.parseLong(digitos);
+        definir(lido);
+        campo.setText(Tema.inteiro(valor.get()));
+    }
+
+    private void definir(long novo) {
+        valor.set((int) Math.max(minimo, Math.min(maximo, novo)));
     }
 
     IntegerProperty valorProperty() {
@@ -40,6 +70,7 @@ final class Contador extends HBox {
     }
 
     int valor() {
+        confirmar();
         return valor.get();
     }
 }

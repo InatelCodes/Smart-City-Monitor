@@ -115,6 +115,9 @@ final class PaginaCpu extends VBox {
             int quantum = ctrl.getQuantum();
             int custo = ctrl.getCustoTrocaContexto();
             Modo m = modo.valor();
+            if (m != Modo.FCFS) {
+                EscalonamentoController.validarFatias(carga, quantum);
+            }
             ResultadoEscalonamento fcfs = m != Modo.RR ? new Fcfs(custo).executar(carga) : null;
             ResultadoEscalonamento rr = m != Modo.FCFS ? new RoundRobin(quantum, custo).executar(carga) : null;
             mostrar(carga, fcfs, rr, quantum, custo);
@@ -182,8 +185,8 @@ final class PaginaCpu extends VBox {
                 kpi("ESPERA MÉDIA", Tema.num(m.tempoMedioEspera()), "tempo parado na fila de pronto"),
                 kpi("RESPOSTA MÉDIA", Tema.num(m.tempoMedioResposta()), "da chegada até a 1ª vez na CPU"),
                 kpi("RETORNO MÉDIO", Tema.num(m.tempoMedioRetorno()), "da chegada até terminar"),
-                kpi("DURAÇÃO TOTAL", String.valueOf(m.makespan()), "makespan da carga inteira"),
-                kpi("TROCAS DE CONTEXTO", m.trocasContexto() + "  (" + m.tempoTrocasContexto() + " un.)",
+                kpi("DURAÇÃO TOTAL", Tema.inteiro(m.makespan()), "makespan da carga inteira (ut)"),
+                kpi("TROCAS DE CONTEXTO", m.trocasContexto() + "  (" + Tema.inteiro(m.tempoTrocasContexto()) + " ut)",
                         "CPU útil " + String.format(Tema.PT, "%.1f", m.utilizacaoCpuPercentual()) + "%"));
         for (var n : linha.getChildren()) {
             HBox.setHgrow(n, Priority.ALWAYS);
@@ -216,9 +219,9 @@ final class PaginaCpu extends VBox {
         for (ProcessoResultado pr : r.processos().stream()
                 .sorted((a, b) -> Integer.compare(a.processo().ordemCadastro(), b.processo().ordemCadastro())).toList()) {
             var p = pr.processo();
-            String[] vals = {null, Tema.nome(p.tipoEvento()) + " — " + p.descricao(), String.valueOf(p.tempoChegada()),
-                    String.valueOf(p.burst()), String.valueOf(pr.conclusao()), String.valueOf(pr.tempoEspera()),
-                    String.valueOf(pr.tempoRetorno()), String.valueOf(pr.tempoResposta())};
+            String[] vals = {null, Tema.nome(p.tipoEvento()) + " — " + p.descricao(), Tema.inteiro(p.tempoChegada()),
+                    Tema.inteiro(p.burst()), Tema.inteiro(pr.conclusao()), Tema.inteiro(pr.tempoEspera()),
+                    Tema.inteiro(pr.tempoRetorno()), Tema.inteiro(pr.tempoResposta())};
             for (int c = 0; c < vals.length; c++) {
                 javafx.scene.Node n;
                 if (c == 0) {
@@ -243,6 +246,34 @@ final class PaginaCpu extends VBox {
     }
 
     // ---------------------------------------------------------------- comparação
+
+    /** Menor valor "redondo" (1, 2 ou 5 × 10^k) que seja pelo menos {@code bruto}. */
+    private static double passoRedondo(double bruto) {
+        double potencia = 1;
+        while (potencia * 10 <= bruto) {
+            potencia *= 10;
+        }
+        for (double base : new double[]{1, 2, 5, 10}) {
+            if (base * potencia >= bruto) {
+                return base * potencia;
+            }
+        }
+        return 10 * potencia;
+    }
+
+    private static javafx.util.StringConverter<Number> formatadorInteiro() {
+        return new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(Number n) {
+                return Tema.inteiro(Math.round(n.doubleValue()));
+            }
+
+            @Override
+            public Number fromString(String s) {
+                return 0;
+            }
+        };
+    }
 
     private record Metrica(String nome, String dica, ToDoubleFunction<MetricasEscalonamento> f, boolean menorMelhor, boolean inteiro) {
     }
@@ -317,7 +348,7 @@ final class PaginaCpu extends VBox {
     }
 
     private static String formatar(double v, Metrica m) {
-        return m.inteiro() ? String.valueOf((int) Math.round(v)) : Tema.num(v);
+        return m.inteiro() ? Tema.inteiro(Math.round(v)) : Tema.num(v);
     }
 
     private static List<String> leitura(MetricasEscalonamento f, MetricasEscalonamento r) {
@@ -345,31 +376,39 @@ final class PaginaCpu extends VBox {
         }
         frases.add("Resposta: " + (r.tempoMedioResposta() < f.tempoMedioResposta() ? "Round Robin" : f.tempoMedioResposta() < r.tempoMedioResposta() ? "FCFS" : "empate")
                 + " (" + Tema.num(f.tempoMedioResposta()) + " no FCFS vs " + Tema.num(r.tempoMedioResposta()) + " no RR) — quanto tempo até cada evento começar a ser tratado.");
-        frases.add("Custo: o Round Robin fez " + r.trocasContexto() + " troca(s) de contexto (" + r.tempoTrocasContexto()
-                + " un. de CPU sem trabalho útil) contra " + f.trocasContexto() + " (" + f.tempoTrocasContexto() + " un.) do FCFS.");
+        frases.add("Custo: o Round Robin fez " + r.trocasContexto() + " troca(s) de contexto (" + Tema.inteiro(r.tempoTrocasContexto())
+                + " ut de CPU sem trabalho útil) contra " + f.trocasContexto() + " (" + Tema.inteiro(f.tempoTrocasContexto()) + " ut) do FCFS.");
         return frases;
     }
 
     private VBox graficoQuantum(List<ProcessoUrbano> carga, ResultadoEscalonamento fcfs, int quantumAtual, int custo) {
         int maiorBurst = carga.stream().mapToInt(ProcessoUrbano::burst).max().orElse(1);
+        long totalBurst = carga.stream().mapToLong(ProcessoUrbano::burst).sum();
         int limite = Math.max(maiorBurst, quantumAtual);
-        int passo = Math.max(1, (int) Math.ceil(limite / 30.0));
+        // quantums menores que isto gerariam mais de ~100 fatias e a sobrecarga de troca esmagaria
+        // a escala do gráfico: ficam fora dele (o botão Executar continua aceitando até 6.000 fatias)
+        int minimo = (int) Math.max(1, Math.min(limite - 1, (totalBurst + 99) / 100));
+        int passo = Math.max(1, (limite - minimo) / 29);
         Map<Integer, MetricasEscalonamento> porQuantum = new TreeMap<>();
-        for (int q = 1; q <= limite; q += passo) {
+        for (int q = minimo; q <= limite; q += passo) {
             porQuantum.put(q, new RoundRobin(q, custo).executar(carga).metricas());
         }
+        porQuantum.put(limite, new RoundRobin(limite, custo).executar(carga).metricas());
         porQuantum.put(quantumAtual, new RoundRobin(quantumAtual, custo).executar(carga).metricas());
+        final int quantumMinimo = porQuantum.keySet().iterator().next();
 
         Segmentado<Metrica> escolha = new Segmentado<>(
                 List.of(METRICAS.get(0), METRICAS.get(1), METRICAS.get(3), METRICAS.get(4)), Metrica::nome);
         VBox graficoBox = new VBox();
         Runnable desenhar = () -> graficoBox.getChildren().setAll(
-                construirLinha(escolha.valor(), porQuantum, fcfs.metricas(), quantumAtual, limite));
+                construirLinha(escolha.valor(), porQuantum, fcfs.metricas(), quantumAtual, quantumMinimo, limite));
         escolha.valorProperty().addListener((o, a, b) -> desenhar.run());
         desenhar.run();
 
-        Label nota = Tema.rotulo("Com quantum maior ou igual ao maior burst (" + maiorBurst
-                + ") o Round Robin nunca preempta e se comporta como o FCFS. Quantum pequeno demais gera trocas demais.", "leitura-texto");
+        Label nota = Tema.rotulo("Com quantum maior ou igual ao maior burst (" + Tema.inteiro(maiorBurst)
+                + ") o Round Robin nunca preempta e se comporta como o FCFS. Quantum pequeno demais gera trocas demais"
+                + (quantumMinimo > 1 ? " (quantums abaixo de " + Tema.inteiro(quantumMinimo) + " geram centenas de fatias e não são plotados)." : "."),
+                "leitura-texto");
         nota.setWrapText(true);
         HBox topo = new HBox(12, Tema.rotulo("EFEITO DO QUANTUM NO ROUND ROBIN", "eyebrow"), Tema.espaco(), escolha);
         topo.setAlignment(Pos.CENTER_LEFT);
@@ -380,10 +419,13 @@ final class PaginaCpu extends VBox {
     }
 
     private LineChart<Number, Number> construirLinha(Metrica m, Map<Integer, MetricasEscalonamento> dados,
-                                                    MetricasEscalonamento fcfs, int quantumAtual, int limite) {
-        NumberAxis x = new NumberAxis(1, Math.max(2, limite), Math.max(1, limite / 10));
-        x.setLabel("quantum");
+                                                    MetricasEscalonamento fcfs, int quantumAtual, int minimo, int limite) {
+        double passoX = passoRedondo((limite - minimo) / 8.0);
+        NumberAxis x = new NumberAxis(0, Math.ceil(Math.max(minimo + 1, limite) / passoX) * passoX, passoX);
+        x.setLabel("quantum (ut)");
+        x.setTickLabelFormatter(formatadorInteiro());
         NumberAxis y = new NumberAxis();
+        y.setTickLabelFormatter(formatadorInteiro());
         y.setForceZeroInRange(true);
         y.setLabel(m.nome());
         LineChart<Number, Number> grafico = new LineChart<>(x, y);
@@ -399,10 +441,10 @@ final class PaginaCpu extends VBox {
         XYChart.Series<Number, Number> sF = new XYChart.Series<>();
         sF.setName("FCFS (referência)");
         double vf = m.f().applyAsDouble(fcfs);
-        sF.getData().add(new XYChart.Data<>(1, vf));
-        sF.getData().add(new XYChart.Data<>(Math.max(2, limite), vf));
+        sF.getData().add(new XYChart.Data<>(minimo, vf));
+        sF.getData().add(new XYChart.Data<>(Math.max(minimo + 1, limite), vf));
         XYChart.Series<Number, Number> sA = new XYChart.Series<>();
-        sA.setName("quantum escolhido (" + quantumAtual + ")");
+        sA.setName("quantum escolhido (" + Tema.inteiro(quantumAtual) + ")");
         sA.getData().add(new XYChart.Data<>(quantumAtual, m.f().applyAsDouble(dados.get(quantumAtual))));
         grafico.getData().addAll(List.of(sRr, sF, sA));
         return grafico;

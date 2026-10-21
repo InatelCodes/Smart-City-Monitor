@@ -4,6 +4,7 @@ import br.smartcity.monitor.escalonamento.model.ProcessoUrbano;
 import br.smartcity.monitor.escalonamento.sincronismo.ComparacaoSincronismo;
 import br.smartcity.monitor.escalonamento.sincronismo.ModoSincronizacao;
 import br.smartcity.monitor.escalonamento.sincronismo.ResultadoSincronismo;
+import br.smartcity.monitor.escalonamento.sincronismo.SimuladorSincronismo;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -81,13 +82,15 @@ final class PaginaSincronismo extends VBox {
         explicacao.setText(switch (modo.valor()) {
             case SEM -> "Uma thread por processo, todas escrevendo ao mesmo tempo, sem lock: os registros se misturam (condição de corrida).";
             case COM -> "As mesmas threads, mas com ReentrantLock: só uma entra na região crítica por vez e cada registro sai inteiro.";
-            case AMBOS -> "Mesma carga congelada executada nos dois modos: veja a integridade do arquivo e o custo de esperar pelo lock.";
+            case AMBOS -> "Mesma carga executada nos dois modos, alternando as rodadas. A duração é a mediana de "
+                    + SimuladorSincronismo.REPETICOES_PADRAO + " execuções (após aquecimento da JVM): em ms de relógio, uma única execução oscila bastante.";
         });
     }
 
     void limpar() {
         Label vazio = Tema.rotulo(
-                "Escolha o modo acima e clique em Executar.\nUma thread de sensor é criada para cada processo da carga.",
+                "Escolha o modo acima e clique em Executar.\nUma thread de sensor é criada para cada processo da carga "
+                        + "(a duração real das threads não depende dos bursts).",
                 "vazio");
         vazio.setAlignment(Pos.CENTER);
         vazio.setMaxWidth(Double.MAX_VALUE);
@@ -183,7 +186,7 @@ final class PaginaSincronismo extends VBox {
         g.getColumnConstraints().addAll(c0, c1);
 
         linha(g, 0, "Registros íntegros", "maior é melhor", s.registrosValidos(), k.registrosValidos(), s.registrosEsperados(), true);
-        linha(g, 1, "Duração (ms)", "oscila entre execuções", s.duracaoMs(), k.duracaoMs(), 0, false);
+        linha(g, 1, "Duração (ms, mediana)", "menor é melhor", s.duracaoMs(), k.duracaoMs(), 0, false);
         linha(g, 2, "Espera pelo lock (ms)", "só existe com lock", s.tempoMedioEsperaMs(), k.tempoMedioEsperaMs(), 0, false);
 
         HBox chave = new HBox(16, chave(COR_SEM, "Sem sincronismo"), chave(COR_COM, "Com sincronismo"));
@@ -230,9 +233,14 @@ final class PaginaSincronismo extends VBox {
                 : "Sem lock, " + s.registrosCorrompidos() + " de " + s.registrosEsperados() + " registros saíram corrompidos; com lock, "
                 + k.registrosCorrompidos() + " de " + k.registrosEsperados() + ".";
         String custo = "Com lock, cada thread esperou em média " + Tema.num(k.tempoMedioEsperaMs())
-                + " ms para entrar na região crítica. Duração: " + Tema.num(k.duracaoMs()) + " ms com lock e "
-                + Tema.num(s.duracaoMs()) + " ms sem — diferença pequena que oscila entre execuções (sem lock, as threads também aguardam numa barreira que força a colisão).";
-        return List.of(integridade, custo);
+                + " ms para entrar na região crítica. Duração (mediana): " + Tema.num(k.duracaoMs()) + " ms com lock e "
+                + Tema.num(s.duracaoMs()) + " ms sem lock.";
+        String nota = k.duracaoMs() < s.duracaoMs()
+                ? "Com lock ficou mais rápido porque, sem lock, as threads aguardam numa barreira (CyclicBarrier) que força a "
+                + "colisão e dormem 1 ms entre fragmentos; o experimento mede colisão, não desempenho (ver README)."
+                : "Sem lock as threads rodam em paralelo (mas esperam numa barreira para forçar a colisão); com lock elas "
+                + "se serializam, então a duração com lock tende a ser maior.";
+        return List.of(integridade, custo, nota);
     }
 
     /** Mesma regra de RegistroCompartilhado.linhaCompleta (que é package-private). */
@@ -271,7 +279,7 @@ final class PaginaSincronismo extends VBox {
             integridade.setMaxWidth(Double.MAX_VALUE);
 
             HBox metricas = new HBox(14,
-                    mini("DURAÇÃO", Tema.num(r.duracaoMs()) + " ms"),
+                    mini("DURAÇÃO (MEDIANA)", Tema.num(r.duracaoMs()) + " ms"),
                     mini("ESPERA MÉDIA PELO LOCK", com ? Tema.num(r.tempoMedioEsperaMs()) + " ms" : "— (sem lock)"));
 
             VBox linhas = new VBox(4);

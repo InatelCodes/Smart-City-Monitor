@@ -47,8 +47,14 @@ final class Tema {
         };
     }
 
+    /** Decimal com separador de milhar: 28.833,33 */
     static String num(double valor) {
-        return String.format(PT, "%.2f", valor);
+        return String.format(PT, "%,.2f", valor);
+    }
+
+    /** Inteiro com separador de milhar: 40.000 */
+    static String inteiro(long valor) {
+        return String.format(PT, "%,d", valor);
     }
 
     static Label rotulo(String texto, String... classes) {

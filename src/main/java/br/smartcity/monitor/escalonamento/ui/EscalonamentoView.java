@@ -13,7 +13,8 @@ import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Spinner;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.BorderPane;
@@ -38,6 +39,9 @@ public final class EscalonamentoView extends BorderPane {
     private static final String PAGINA_THREADS = "Prova com threads reais";
 
     private final EscalonamentoController controller = new EscalonamentoController();
+    private Contador quantum;
+    private Contador custo;
+    private Contador escrita;
     private final VBox listaProcessos = new VBox(8);
     private final Label contagem = Tema.rotulo("0", "contagem");
     private final PaginaCpu paginaCpu = new PaginaCpu(controller);
@@ -92,12 +96,21 @@ public final class EscalonamentoView extends BorderPane {
         novo.getStyleClass().add("btn-primario");
         novo.setMaxWidth(Double.MAX_VALUE);
         novo.setOnAction(e -> abrirDialogo(null));
-        Button exemplo = new Button("Carga de exemplo");
+        MenuButton exemplo = new MenuButton("Cenários");
         exemplo.getStyleClass().add("btn-secundario");
+        exemplo.setMinWidth(Region.USE_PREF_SIZE);
         exemplo.setMaxWidth(Double.MAX_VALUE);
-        exemplo.setOnAction(e -> alterarCarga(controller::restaurarCargaExemplo));
+        for (CenarioExemplo cenario : CenarioExemplo.values()) {
+            MenuItem item = new MenuItem(cenario.titulo());
+            item.setOnAction(e -> {
+                alterarCarga(() -> controller.carregarCenario(cenario));
+                sincronizarParametros();
+            });
+            exemplo.getItems().add(item);
+        }
         Button limpar = new Button("Limpar");
         limpar.getStyleClass().add("btn-secundario");
+        limpar.setMinWidth(Region.USE_PREF_SIZE);
         limpar.setMaxWidth(Double.MAX_VALUE);
         limpar.setOnAction(e -> alterarCarga(controller::limparCarga));
         HBox.setHgrow(exemplo, Priority.ALWAYS);
@@ -111,19 +124,19 @@ public final class EscalonamentoView extends BorderPane {
         HBox cabecalho = new HBox(8, Tema.rotulo("CARGA DE PROCESSOS", "eyebrow"), contagem);
         cabecalho.setAlignment(Pos.CENTER_LEFT);
 
-        Contador quantum = new Contador(controller.getQuantum(), 1, 50);
+        quantum = new Contador(controller.getQuantum(), 1, EscalonamentoController.VALOR_MAXIMO, 1_000);
         quantum.valorProperty().addListener((obs, a, b) -> {
             controller.setQuantum(b.intValue());
             paginaCpu.limpar();
             paginaIntegrada.limpar();
         });
-        Contador custo = new Contador(controller.getCustoTrocaContexto(), 0, 20);
+        custo = new Contador(controller.getCustoTrocaContexto(), 0, EscalonamentoController.VALOR_MAXIMO, 100);
         custo.valorProperty().addListener((obs, a, b) -> {
             controller.setCustoTrocaContexto(b.intValue());
             paginaCpu.limpar();
             paginaIntegrada.limpar();
         });
-        Contador escrita = new Contador(controller.getTamanhoEscrita(), 1, 20);
+        escrita = new Contador(controller.getTamanhoEscrita(), 1, EscalonamentoController.VALOR_MAXIMO, 1_000);
         escrita.valorProperty().addListener((obs, a, b) -> {
             controller.setTamanhoEscrita(b.intValue());
             paginaIntegrada.limpar();
@@ -131,15 +144,22 @@ public final class EscalonamentoView extends BorderPane {
 
         VBox parametros = new VBox(8,
                 Tema.rotulo("PARÂMETROS", "eyebrow"),
-                parametro("Quantum (Round Robin)", "fatia máxima de CPU por vez", quantum),
-                parametro("Troca de contexto", "unidades de tempo por troca", custo),
-                parametro("Escrita no arquivo", "fim do burst, região crítica (un. de CPU)", escrita));
+                parametro("Quantum (Round Robin)", "fatia máxima de CPU por vez (ut)", quantum),
+                parametro("Troca de contexto", "custo de cada troca (ut)", custo),
+                parametro("Escrita no arquivo", "fim do burst, região crítica (ut)", escrita));
 
         VBox lateral = new VBox(14, cabecalho, novo, rolagem, new HBox(8, exemplo, limpar), parametros);
         lateral.getStyleClass().add("lateral");
         lateral.setPrefWidth(300);
         lateral.setMinWidth(300);
         return lateral;
+    }
+
+    /** Reflete nos contadores os parâmetros que o controller acabou de receber (ex.: cenário). */
+    private void sincronizarParametros() {
+        quantum.valorProperty().set(controller.getQuantum());
+        custo.valorProperty().set(controller.getCustoTrocaContexto());
+        escrita.valorProperty().set(controller.getTamanhoEscrita());
     }
 
     private VBox parametro(String nome, String dica, Contador contador) {
@@ -186,7 +206,7 @@ public final class EscalonamentoView extends BorderPane {
         barra.setPrefWidth(10);
         barra.setMaxWidth(Region.USE_PREF_SIZE);
 
-        Label tempos = Tema.rotulo("chega em " + p.tempoChegada() + "  ·  burst " + p.burst(), "proc-tempos");
+        Label tempos = Tema.rotulo("chega em " + Tema.inteiro(p.tempoChegada()) + "  ·  burst " + Tema.inteiro(p.burst()), "proc-tempos");
 
         Button editar = new Button("✎");
         editar.getStyleClass().add("icone-btn");
@@ -237,12 +257,10 @@ public final class EscalonamentoView extends BorderPane {
         tipo.setButtonCell(celulaTipo());
         TextField descricao = new TextField(existente != null ? existente.descricao() : "");
         descricao.setPromptText("Ex.: Congestionamento na Av. Central");
-        Spinner<Integer> chegada = new Spinner<>(0, 999, existente != null ? existente.tempoChegada() : 0);
-        Spinner<Integer> burst = new Spinner<>(1, 999, existente != null ? existente.burst() : 3);
-        chegada.setEditable(true);
-        burst.setEditable(true);
-        chegada.setMaxWidth(Double.MAX_VALUE);
-        burst.setMaxWidth(Double.MAX_VALUE);
+        Contador chegada = new Contador(existente != null ? existente.tempoChegada() : 0,
+                0, EscalonamentoController.VALOR_MAXIMO, 1_000);
+        Contador burst = new Contador(existente != null ? existente.burst() : 10_000,
+                1, EscalonamentoController.VALOR_MAXIMO, 1_000);
 
         GridPane g = new GridPane();
         g.setHgap(12);
@@ -251,16 +269,14 @@ public final class EscalonamentoView extends BorderPane {
         g.addRow(0, Tema.rotulo("ID", "param-nome"), id);
         g.addRow(1, Tema.rotulo("Tipo de evento", "param-nome"), tipo);
         g.addRow(2, Tema.rotulo("Descrição", "param-nome"), descricao);
-        g.addRow(3, Tema.rotulo("Tempo de chegada", "param-nome"), chegada);
-        g.addRow(4, Tema.rotulo("Burst (tempo de CPU)", "param-nome"), burst);
+        g.addRow(3, Tema.rotulo("Tempo de chegada (ut)", "param-nome"), chegada);
+        g.addRow(4, Tema.rotulo("Burst — tempo de CPU (ut)", "param-nome"), burst);
         dialogo.getDialogPane().setContent(g);
 
         Optional<ButtonType> resposta = dialogo.showAndWait();
         if (resposta.isPresent() && resposta.get() == ButtonType.OK) {
-            chegada.increment(0);
-            burst.increment(0);
-            int c = chegada.getValue();
-            int b = burst.getValue();
+            int c = chegada.valor();
+            int b = burst.valor();
             alterarCarga(() -> {
                 if (existente == null) {
                     controller.adicionarProcesso(id.getText(), tipo.getValue(), descricao.getText(), c, b);
