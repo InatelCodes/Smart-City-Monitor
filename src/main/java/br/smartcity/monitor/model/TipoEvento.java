@@ -5,4 +5,4 @@ public enum TipoEvento {
     CLIMA,
     ENERGIA,
     QUALIDADE_AR
-}
+}

@@ -38,4 +38,4 @@ public class Evento {
         return "[" + tipo + "] " + descricao +
                 " | criado em: " + timestampCriacao;
     }
-}
+}
