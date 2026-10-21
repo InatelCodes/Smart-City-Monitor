@@ -24,16 +24,19 @@ class EscalonamentoControllerTest {
         assertEquals("Congestionamento detectado", processos.get(0).descricao());
         assertEquals(TipoEvento.ENERGIA, processos.get(1).tipoEvento());
         assertEquals(TipoEvento.QUALIDADE_AR, processos.get(2).tipoEvento());
-        assertEquals(2, controller.getQuantum());
-        assertEquals(1, controller.getCustoTrocaContexto());
+        assertEquals(10_000, controller.getQuantum());
+        assertEquals(500, controller.getCustoTrocaContexto());
+        assertEquals(15_000, controller.getTamanhoEscrita());
+        assertEquals(40_000, processos.get(0).burst());
+        assertEquals(5_000, processos.get(1).tempoChegada());
         assertEquals(
                 ModoSincronizacao.COM_SINCRONISMO,
                 controller.getModoSincronizacao()
         );
 
         ResultadoEscalonamento resultado = controller.executarFcfs();
-        assertEquals(16, resultado.metricas().makespan());
-        assertEquals(2, resultado.metricas().tempoTrocasContexto());
+        assertEquals(71_000, resultado.metricas().makespan());
+        assertEquals(1_000, resultado.metricas().tempoTrocasContexto());
         assertFalse(controller.isEdicaoBloqueada());
     }
 
@@ -113,5 +116,50 @@ class EscalonamentoControllerTest {
                 IllegalStateException.class,
                 controller::iniciarSimulacao
         );
+    }
+
+    @Test
+    void carregaOCenarioBEAjustaOsParametros() {
+        EscalonamentoController controller = new EscalonamentoController();
+
+        controller.carregarCenario(CenarioExemplo.LOCK_MELHORA_OS_TEMPOS);
+
+        assertEquals(3, controller.obterProcessos().size());
+        assertEquals(4_000, controller.getQuantum());
+        assertEquals(1_000, controller.getCustoTrocaContexto());
+        assertEquals(6_000, controller.getTamanhoEscrita());
+        assertEquals(10_000, controller.obterProcessos().get(2).burst());
+
+        controller.restaurarCargaExemplo();
+        assertEquals(10_000, controller.getQuantum());
+        assertEquals(15_000, controller.getTamanhoEscrita());
+    }
+
+    @Test
+    void estimaFatiasERecusaQuantumQueTornariaOGanttIlegivel() {
+        EscalonamentoController controller = new EscalonamentoController();
+        List<ProcessoUrbano> carga = controller.obterProcessos();
+
+        assertEquals(7, EscalonamentoController.estimarFatias(carga, 10_000));
+        assertEquals(70_000, EscalonamentoController.estimarFatias(carga, 1));
+        EscalonamentoController.validarFatias(carga, 10_000);
+        IllegalArgumentException erro = assertThrows(
+                IllegalArgumentException.class,
+                () -> EscalonamentoController.validarFatias(carga, 1)
+        );
+        assertTrue(erro.getMessage().contains("70.000"));
+    }
+
+    @Test
+    void aceitaValoresGrandesEImpedeEstouroDeInteiro() {
+        EscalonamentoController controller = new EscalonamentoController();
+
+        controller.setQuantum(EscalonamentoController.VALOR_MAXIMO);
+        controller.setTamanhoEscrita(40_000);
+        controller.adicionarProcesso("P9", TipoEvento.CLIMA, "Tempestade", 100_000, 1_000_000);
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.setQuantum(EscalonamentoController.VALOR_MAXIMO + 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> controller.adicionarProcesso("P10", TipoEvento.CLIMA, "Chuva", 0, Integer.MAX_VALUE));
     }
 }

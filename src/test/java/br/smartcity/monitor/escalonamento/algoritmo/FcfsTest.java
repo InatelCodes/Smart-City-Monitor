@@ -56,6 +56,27 @@ class FcfsTest {
     }
 
     @Test
+    void reproduzCargaDeReferenciaComBurstsDeDezenasDeMilhares() {
+        ResultadoEscalonamento resultado = new Fcfs(500).executar(List.of(
+                processo("P1", TipoEvento.TRANSITO, 0, 40_000, 0),
+                processo("P2", TipoEvento.ENERGIA, 5_000, 20_000, 1),
+                processo("P3", TipoEvento.QUALIDADE_AR, 10_000, 10_000, 2)
+        ));
+
+        assertEquals(
+                List.of(40_000, 60_500, 71_000),
+                resultado.processos().stream().map(ProcessoResultado::conclusao).toList()
+        );
+        assertEquals(
+                List.of(0, 35_500, 51_000),
+                resultado.processos().stream().map(ProcessoResultado::tempoEspera).toList()
+        );
+        assertEquals(71_000, resultado.metricas().makespan());
+        assertEquals(2, resultado.metricas().trocasContexto());
+        assertEquals(1_000, resultado.metricas().tempoTrocasContexto());
+    }
+
+    @Test
     void representaCpuOciosaEDesempataPelaOrdemDeCadastro() {
         ProcessoUrbano segundoCadastro =
                 processo("P2", TipoEvento.CLIMA, 3, 1, 1);

@@ -20,9 +20,20 @@ import java.util.Objects;
  */
 public final class EscalonamentoController {
 
-    public static final int QUANTUM_PADRAO = 2;
-    public static final int CUSTO_TROCA_CONTEXTO_PADRAO = 1;
-    public static final int TAMANHO_ESCRITA_PADRAO = 3;
+    /**
+     * Escala dos valores de teste: as unidades de tempo são abstratas e a carga padrão usa
+     * bursts de dezenas de milhares (40.000 ut), com quantum proporcional. Valores pequenos
+     * (como 8 ou 2) continuam aceitos, mas escondem o efeito do quantum.
+     */
+    public static final int QUANTUM_PADRAO = 10_000;
+    public static final int CUSTO_TROCA_CONTEXTO_PADRAO = 500;
+    public static final int TAMANHO_ESCRITA_PADRAO = 15_000;
+
+    /** Maior valor aceito para tempos, burst, quantum e escrita (evita estouro de int). */
+    public static final int VALOR_MAXIMO = 1_000_000;
+
+    /** Limite de fatias de CPU por execução, para o Gantt continuar legível e fluido. */
+    public static final int LIMITE_FATIAS = 6_000;
 
     private final List<ProcessoUrbano> processos = new ArrayList<>();
     private int proximaOrdemCadastro;
@@ -45,6 +56,7 @@ public final class EscalonamentoController {
             int burst
     ) {
         garantirEdicaoPermitida();
+        validarLimites(tempoChegada, burst);
         ProcessoUrbano processo = new ProcessoUrbano(
                 id,
                 tipoEvento,
@@ -68,6 +80,7 @@ public final class EscalonamentoController {
             int burst
     ) {
         garantirEdicaoPermitida();
+        validarLimites(tempoChegada, burst);
         int indice = encontrarIndice(idAtual);
         ProcessoUrbano atual = processos.get(indice);
         ProcessoUrbano atualizado = new ProcessoUrbano(
@@ -95,33 +108,21 @@ public final class EscalonamentoController {
     }
 
     public synchronized void restaurarCargaExemplo() {
+        carregarCenario(CenarioExemplo.COLISAO_NO_ROUND_ROBIN);
+    }
+
+    /** Substitui a carga e os parâmetros pelos de um cenário pronto. */
+    public synchronized void carregarCenario(CenarioExemplo cenario) {
+        Objects.requireNonNull(cenario, "cenario");
         garantirEdicaoPermitida();
         processos.clear();
         proximaOrdemCadastro = 0;
-
-        adicionarProcesso(
-                "P1",
-                TipoEvento.TRANSITO,
-                "Congestionamento detectado",
-                0,
-                8
-        );
-        adicionarProcesso(
-                "P2",
-                TipoEvento.ENERGIA,
-                "Pico de consumo detectado",
-                1,
-                4
-        );
-        adicionarProcesso(
-                "P3",
-                TipoEvento.QUALIDADE_AR,
-                "Nível de poluentes elevado",
-                2,
-                2
-        );
-        quantum = QUANTUM_PADRAO;
-        custoTrocaContexto = CUSTO_TROCA_CONTEXTO_PADRAO;
+        for (CenarioExemplo.ProcessoModelo p : cenario.processos()) {
+            adicionarProcesso(p.id(), p.tipoEvento(), p.descricao(), p.tempoChegada(), p.burst());
+        }
+        quantum = cenario.quantum();
+        custoTrocaContexto = cenario.custoTrocaContexto();
+        tamanhoEscrita = cenario.tamanhoEscrita();
         modoSincronizacao = ModoSincronizacao.COM_SINCRONISMO;
     }
 
@@ -145,6 +146,42 @@ public final class EscalonamentoController {
                     "O quantum deve ser maior que zero"
             );
         }
+        if (quantum > VALOR_MAXIMO) {
+            throw new IllegalArgumentException(
+                    "O quantum deve ser no máximo " + VALOR_MAXIMO
+            );
+        }
+    }
+
+    /** Estimativa de quantas fatias de CPU o Round Robin gera para a carga. */
+    public static long estimarFatias(List<ProcessoUrbano> carga, int quantum) {
+        validarQuantum(quantum);
+        long fatias = 0;
+        for (ProcessoUrbano processo : carga) {
+            fatias += (processo.burst() + (long) quantum - 1) / quantum;
+        }
+        return fatias;
+    }
+
+    /** Recusa quantum tão pequeno que o Gantt viraria uma faixa ilegível. */
+    public static void validarFatias(List<ProcessoUrbano> carga, int quantum) {
+        long fatias = estimarFatias(carga, quantum);
+        if (fatias > LIMITE_FATIAS) {
+            throw new IllegalArgumentException(String.format(
+                    java.util.Locale.forLanguageTag("pt-BR"),
+                    "Com quantum %,d a carga gera %,d fatias de CPU (limite: %,d). "
+                            + "Aumente o quantum ou reduza os bursts.",
+                    quantum, fatias, LIMITE_FATIAS
+            ));
+        }
+    }
+
+    private static void validarLimites(int tempoChegada, int burst) {
+        if (tempoChegada > VALOR_MAXIMO || burst > VALOR_MAXIMO) {
+            throw new IllegalArgumentException(
+                    "Chegada e burst devem ser no máximo " + VALOR_MAXIMO
+            );
+        }
     }
 
     public synchronized int getCustoTrocaContexto() {
@@ -156,6 +193,11 @@ public final class EscalonamentoController {
         if (custoTrocaContexto < 0) {
             throw new IllegalArgumentException(
                     "O custo da troca de contexto não pode ser negativo"
+            );
+        }
+        if (custoTrocaContexto > VALOR_MAXIMO) {
+            throw new IllegalArgumentException(
+                    "O custo da troca deve ser no máximo " + VALOR_MAXIMO
             );
         }
         this.custoTrocaContexto = custoTrocaContexto;
@@ -171,6 +213,11 @@ public final class EscalonamentoController {
         if (tamanhoEscrita < 1) {
             throw new IllegalArgumentException(
                     "A escrita no arquivo deve durar pelo menos 1 unidade"
+            );
+        }
+        if (tamanhoEscrita > VALOR_MAXIMO) {
+            throw new IllegalArgumentException(
+                    "A escrita deve durar no máximo " + VALOR_MAXIMO
             );
         }
         this.tamanhoEscrita = tamanhoEscrita;
@@ -226,10 +273,11 @@ public final class EscalonamentoController {
             throws IOException, InterruptedException {
         List<ProcessoUrbano> carga = iniciarSimulacao();
         try {
-            return new SimuladorSincronismo().executar(
+            return new SimuladorSincronismo().medir(
                     carga,
                     getModoSincronizacao(),
-                    arquivo
+                    arquivo,
+                    SimuladorSincronismo.REPETICOES_PADRAO
             );
         } finally {
             finalizarSimulacao();
