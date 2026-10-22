@@ -170,12 +170,10 @@
 .secondary-button { -fx-background-color: white; -fx-text-fill: #5e7079; -fx-border-color: #d3dde1; }
 .button:disabled, .spinner:disabled { -fx-opacity: 0.45; }
 
-.metrics-row { -fx-alignment: stretch; }
 .metric-card { -fx-padding: 11px 14px; -fx-min-height: 84px; }
 .metric-value { -fx-text-fill: #1e3d49; -fx-font-size: 23px; -fx-font-weight: bold; }
 .metric-detail { -fx-text-fill: #8a979d; -fx-font-size: 9px; }
 
-.visualization-row { -fx-alignment: stretch; }
 .visual-card { -fx-padding: 13px; -fx-min-height: 300px; }
 
 .chart, .chart-plot-background { -fx-background-color: white; }
@@ -252,9 +250,6 @@
 /* Ajustes finais do painel de monitoramento */
 .dashboard-scroll .viewport {
     -fx-background-color: transparent;
-}
-.visualization-row {
-    -fx-alignment: stretch;
 }
 .visual-card {
     -fx-min-height: 292px;
