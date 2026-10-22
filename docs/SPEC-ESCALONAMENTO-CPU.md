@@ -1,5 +1,12 @@
 # Spec — Simulador Smart City de Escalonamento de CPU
 
+> **Atualização:** o sincronismo agora também é simulado em tempo lógico **sobre** FCFS e Round Robin
+> (região crítica ao fim do burst, lock com bloqueio) e os valores padrão de teste foram escalados para
+> dezenas de milhares de ut. O modelo, os cenários e os resultados estão no [README](../README.md) e em
+> [POR-QUE-SEM-LOCK-PODE-SER-MAIOR.md](POR-QUE-SEM-LOCK-PODE-SER-MAIOR.md). O restante desta spec
+> permanece válido como contrato dos algoritmos.
+
+
 ## 1. Contexto
 
 O Trabalho Prático 3 pede um simulador capaz de representar a fila de pronto
