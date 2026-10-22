@@ -62,6 +62,7 @@ final class PaginaIntegrada extends VBox {
     private final VBox area = new VBox(16);
     private final DoubleProperty tempo = new SimpleDoubleProperty();
     private final BarraReproducao reproducao = new BarraReproducao(tempo);
+    private final ResultadosPorModo<PaginaCpu.Modo> guardados = new ResultadosPorModo<>(PaginaCpu.Modo.class);
 
     PaginaIntegrada(EscalonamentoController ctrl) {
         super(16);
@@ -76,10 +77,10 @@ final class PaginaIntegrada extends VBox {
         barra.setAlignment(Pos.CENTER_LEFT);
         modo.valorProperty().addListener((obs, a, b) -> {
             atualizarExplicacao();
-            limpar();
+            exibir();
         });
         atualizarExplicacao();
-        limpar();
+        exibir();
         getChildren().addAll(cabecalho, barra, area);
     }
 
@@ -93,8 +94,25 @@ final class PaginaIntegrada extends VBox {
         });
     }
 
+    /** Descarta todos os resultados guardados (carga ou parâmetros mudaram). */
     void limpar() {
+        guardados.descartar();
+        exibir();
+    }
+
+    /** Mostra o resultado guardado do modo atual, ou o estado vazio se ele ainda não foi executado. */
+    private void exibir() {
         reproducao.parar();
+        ResultadosPorModo.Entrada guardado = guardados.obter(modo.valor());
+        if (guardado == null) {
+            mostrarVazio();
+            return;
+        }
+        reproducao.configurar(guardado.tempoMax());
+        area.getChildren().setAll(guardado.blocos());
+    }
+
+    private void mostrarVazio() {
         Label vazio = Tema.rotulo(
                 "Escolha o escalonador acima e clique em Executar.\nCada um roda duas vezes: sem sincronismo e com sincronismo.",
                 "vazio");
@@ -182,6 +200,7 @@ final class PaginaIntegrada extends VBox {
             colunas.add(new Coluna("Round Robin com lock", "RR+lock", COR_RR_COM, rCom));
         }
         blocos.add(placar(colunas, fSem, fCom, rSem, rCom));
+        guardados.guardar(m, blocos, tempoMax);
         area.getChildren().setAll(blocos);
     }
 

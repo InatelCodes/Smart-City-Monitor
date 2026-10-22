@@ -54,6 +54,7 @@ final class PaginaCpu extends VBox {
 
     private final DoubleProperty tempo = new SimpleDoubleProperty();
     private final BarraReproducao reproducao = new BarraReproducao(tempo);
+    private final ResultadosPorModo<Modo> guardados = new ResultadosPorModo<>(Modo.class);
     private int tempoMax;
 
     PaginaCpu(EscalonamentoController ctrl) {
@@ -71,10 +72,10 @@ final class PaginaCpu extends VBox {
 
         modo.valorProperty().addListener((obs, a, b) -> {
             atualizarExplicacao();
-            limpar();
+            exibir();
         });
         atualizarExplicacao();
-        limpar();
+        exibir();
         getChildren().addAll(cabecalho, barra, area);
     }
 
@@ -86,9 +87,26 @@ final class PaginaCpu extends VBox {
         });
     }
 
-    /** Descarta resultados (entrada mudou) e mostra o estado vazio. */
+    /** Descarta todos os resultados guardados (carga ou parâmetros mudaram). */
     void limpar() {
+        guardados.descartar();
+        exibir();
+    }
+
+    /** Mostra o resultado guardado do modo atual, ou o estado vazio se ele ainda não foi executado. */
+    private void exibir() {
         parar();
+        ResultadosPorModo.Entrada guardado = guardados.obter(modo.valor());
+        if (guardado == null) {
+            mostrarVazio();
+            return;
+        }
+        tempoMax = guardado.tempoMax();
+        reproducao.configurar(tempoMax);
+        area.getChildren().setAll(guardado.blocos());
+    }
+
+    private void mostrarVazio() {
         Label vazio = Tema.rotulo(
                 "Escolha o modo acima e clique em Executar.\nA carga e os parâmetros ficam na barra lateral.",
                 "vazio");
@@ -152,6 +170,7 @@ final class PaginaCpu extends VBox {
             blocos.add(kpis(unico.metricas()));
             blocos.add(tabelaProcessos(unico));
         }
+        guardados.guardar(modo.valor(), blocos, tempoMax);
         area.getChildren().setAll(blocos);
     }
 

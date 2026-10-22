@@ -56,6 +56,7 @@ final class PaginaSincronismo extends VBox {
     private final Label explicacao = Tema.rotulo("", "pagina-sub");
     private final Button executar = new Button("▶  Executar");
     private final VBox area = new VBox(16);
+    private final ResultadosPorModo<Modo> guardados = new ResultadosPorModo<>(Modo.class);
 
     PaginaSincronismo(EscalonamentoController ctrl) {
         super(16);
@@ -71,10 +72,10 @@ final class PaginaSincronismo extends VBox {
 
         modo.valorProperty().addListener((obs, a, b) -> {
             atualizarExplicacao();
-            limpar();
+            exibir();
         });
         atualizarExplicacao();
-        limpar();
+        exibir();
         getChildren().addAll(cabecalho, barra, area);
     }
 
@@ -87,7 +88,23 @@ final class PaginaSincronismo extends VBox {
         });
     }
 
+    /** Descarta todos os resultados guardados (a carga mudou). */
     void limpar() {
+        guardados.descartar();
+        exibir();
+    }
+
+    /** Mostra o resultado guardado do modo atual, ou o estado vazio se ele ainda não foi executado. */
+    private void exibir() {
+        ResultadosPorModo.Entrada guardado = guardados.obter(modo.valor());
+        if (guardado == null) {
+            mostrarVazio();
+        } else {
+            area.getChildren().setAll(guardado.blocos());
+        }
+    }
+
+    private void mostrarVazio() {
         Label vazio = Tema.rotulo(
                 "Escolha o modo acima e clique em Executar.\nUma thread de sensor é criada para cada processo da carga "
                         + "(a duração real das threads não depende dos bursts).",
@@ -144,7 +161,7 @@ final class PaginaSincronismo extends VBox {
         });
         tarefa.setOnFailed(e -> {
             executar.setDisable(false);
-            limpar();
+            exibir();
             Throwable erro = tarefa.getException();
             new Alert(Alert.AlertType.ERROR, String.valueOf(erro.getMessage()), ButtonType.OK).showAndWait();
         });
@@ -154,9 +171,10 @@ final class PaginaSincronismo extends VBox {
     }
 
     private void mostrar(Modo m, Par c, Set<String> esperadas) {
+        List<javafx.scene.Node> blocos = new java.util.ArrayList<>();
         switch (m) {
-            case SEM -> area.getChildren().setAll(new CartaoSync(c.sem(), esperadas));
-            case COM -> area.getChildren().setAll(new CartaoSync(c.com(), esperadas));
+            case SEM -> blocos.add(new CartaoSync(c.sem(), esperadas));
+            case COM -> blocos.add(new CartaoSync(c.com(), esperadas));
             case AMBOS -> {
                 CartaoSync sem = new CartaoSync(c.sem(), esperadas);
                 CartaoSync com = new CartaoSync(c.com(), esperadas);
@@ -167,8 +185,16 @@ final class PaginaSincronismo extends VBox {
                 com.setMaxWidth(Double.MAX_VALUE);
                 sem.setPrefWidth(10);
                 com.setPrefWidth(10);
-                area.getChildren().setAll(lado, placar(c));
+                blocos.add(lado);
+                blocos.add(placar(c));
             }
+        }
+        guardados.guardar(m, blocos, 0);
+        // o usuário pode ter trocado de modo enquanto as threads rodavam
+        if (modo.valor() == m) {
+            area.getChildren().setAll(blocos);
+        } else {
+            exibir();
         }
     }
 
